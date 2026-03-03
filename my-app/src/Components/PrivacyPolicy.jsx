@@ -6,125 +6,150 @@ export default function PrivacyPolicy() {
     <div className="privacy-page">
       <div className="privacy-container">
         <header className="privacy-hero">
-          <h1>SmartDocQ Privacy Policy</h1>
-          <p>Last updated: October 2025</p>
+          <h1>Privacy Policy</h1>
+          <p>Effective Date: March 1, 2026</p>
         </header>
 
         <section className="privacy-section">
-          <h2>Overview</h2>
+          <h2>1. Introduction</h2>
           <p>
-            SmartDocQ lets you upload documents and use AI to search, ask questions,
-            and generate study aids (flashcards and quizzes). To provide these features,
-            we store your content and create derived data (like vector embeddings and
-            previews). This policy explains what we collect, how we use it, and your choices.
+            SmartDocQ ("we," "us," or "our") is an AI-powered document assistant that enables 
+            users to upload documents and interact with them through intelligent search, 
+            question-answering, and study tool generation. This Privacy Policy explains how 
+            we collect, use, disclose, and safeguard your information when you use our service.
+          </p>
+          <p>
+            By accessing or using SmartDocQ, you consent to the practices described in this 
+            policy. If you do not agree, please discontinue use immediately.
           </p>
         </section>
 
         <section className="privacy-section">
-          <h2>What We Collect</h2>
+          <h2>2. Information We Collect</h2>
+          
+          <h3>2.1 Account Information</h3>
           <ul>
-            <li>
-              Account data: name, email, authentication method (email/password or Google
-              Sign‑In). Avatars are hosted on Cloudinary.
-            </li>
-            <li>
-              Documents you upload and derived data needed for AI features:
-              embeddings (for search/Q&A), text extracts, and lightweight preview files.
-            </li>
-            <li>
-              Usage metadata: timestamps (e.g., last login, recent activity), feature usage,
-              and basic system logs for reliability, abuse prevention, and admin analytics.
-            </li>
-            <li>
-              Chat history tied to a document (so you can continue conversations later).
-            </li>
+            <li>Name, email address, and encrypted password (for local authentication)</li>
+            <li>Google account identifier (if using Google Sign-In)</li>
+            <li>Profile avatar (stored via Cloudinary)</li>
+            <li>Account creation date and last login timestamp</li>
+          </ul>
+
+          <h3>2.2 Document Data</h3>
+          <ul>
+            <li>Files you upload (PDF, DOCX, TXT formats)</li>
+            <li>Extracted text content for AI processing</li>
+            <li>Vector embeddings generated for semantic search</li>
+            <li>Document metadata (filename, size, upload date, processing status)</li>
+          </ul>
+
+          <h3>2.3 Usage Data</h3>
+          <ul>
+            <li>Chat conversations and Q&A history associated with documents</li>
+            <li>Generated content (quizzes, flashcards, summaries)</li>
+            <li>Feature usage patterns and interaction timestamps</li>
+            <li>Technical logs for system reliability and error diagnostics</li>
           </ul>
         </section>
 
         <section className="privacy-section">
-          <h2>Where We Store Data</h2>
+          <h2>3. How We Use Your Information</h2>
           <ul>
-            <li>
-              Primary data (users, documents, chats) is stored in MongoDB Atlas as configured
-              by your deployment.
-            </li>
-            <li>
-              Vector embeddings for search/Q&A are stored in a local Chroma DB (chroma_db/) so
-              the system can answer quickly without reprocessing.
-            </li>
-            <li>
-              Preview/cache artifacts (e.g., converted PDFs) may be produced by a small Flask
-              service and stored temporarily under pdf_cache/ to speed up viewing.
-            </li>
-            <li>
-              Avatars are stored on Cloudinary.
-            </li>
-            <li>
-              Authentication uses JWTs stored in your browser (localStorage) for session state.
-            </li>
-          </ul>
-        </section>
-
-        <section className="privacy-section">
-          <h2>How We Use Data</h2>
-          <ul>
-            <li>Provide core app features (upload, preview, search, Q/A, flashcards, quizzes).</li>
-            <li>Operate admin dashboards (e.g., online users and growth) using recent activity.</li>
-            <li>Improve reliability, troubleshoot issues, and prevent abuse.</li>
+            <li><strong>Service Delivery:</strong> Process documents, generate AI responses, create study materials, and enable document search functionality</li>
+            <li><strong>Account Management:</strong> Authenticate users, manage sessions, and personalize your experience</li>
+            <li><strong>Service Improvement:</strong> Analyze usage patterns, diagnose technical issues, and enhance features</li>
+            <li><strong>Security:</strong> Detect fraud, prevent abuse, enforce rate limits, and protect against unauthorized access</li>
+            <li><strong>Legal Compliance:</strong> Comply with applicable laws, regulations, and legal processes</li>
           </ul>
           <p>
-            We do not sell your data. We do not use your documents to train foundation models.
-            Depending on deployment, an LLM provider may temporarily process prompts/context to
-            generate answers; we configure providers to avoid using your data for model training
-            where such controls are available.
+            <strong>We do not sell your personal data.</strong> We do not use your documents 
+            to train AI models. Your content is processed solely to provide the requested service features.
           </p>
         </section>
 
         <section className="privacy-section">
-          <h2>Retention & Deletion</h2>
+          <h2>4. Data Storage and Security</h2>
+          
+          <h3>4.1 Storage Infrastructure</h3>
           <ul>
-            <li>
-              Deleting a document in History removes the document and queues associated
-              embeddings and cached previews for cleanup.
-            </li>
-            <li>
-              You can delete a conversation for a document from the Chat panel; this removes
-              the stored chat history for that document.
-            </li>
-            <li>
-              Admins can deactivate users; deactivated users cannot sign in. To request full
-              account deletion (and related data where possible), contact support.
-            </li>
-            <li>
-              System logs and analytics are retained for a limited period and then rotated; the
-              window may vary by deployment settings.
-            </li>
+            <li><strong>Primary Database:</strong> MongoDB Atlas (cloud-hosted) for user accounts, documents, and chat history</li>
+            <li><strong>Vector Database:</strong> ChromaDB for document embeddings enabling semantic search</li>
+            <li><strong>Media Storage:</strong> Cloudinary for user avatars</li>
+            <li><strong>Session Management:</strong> JWT tokens stored in browser localStorage</li>
+          </ul>
+
+          <h3>4.2 Security Measures</h3>
+          <ul>
+            <li>HTTPS/TLS encryption for all data in transit</li>
+            <li>Password hashing using bcrypt with secure salt rounds</li>
+            <li>JWT-based authentication with token expiration</li>
+            <li>Rate limiting to prevent brute-force attacks</li>
+            <li>Input validation and file type verification</li>
           </ul>
         </section>
 
         <section className="privacy-section">
-          <h2>Security</h2>
+          <h2>5. Third-Party Services</h2>
+          <p>We integrate with the following third-party services to provide functionality:</p>
           <ul>
-            <li>Transport security with HTTPS is required for production deployments.</li>
-            <li>Access control is enforced with JWTs; admin routes require admin privileges.</li>
-            <li>File names are validated and sanitized on upload; size/type limits are enforced.</li>
+            <li><strong>Google Gemini API:</strong> Processes document content to generate AI responses, embeddings, quizzes, and summaries</li>
+            <li><strong>Google OAuth:</strong> Provides optional single sign-on authentication</li>
+            <li><strong>Cloudinary:</strong> Hosts user profile images</li>
+            <li><strong>MongoDB Atlas:</strong> Cloud database infrastructure</li>
           </ul>
-        </section>
-
-        <section className="privacy-section">
-          <h2>Your Choices</h2>
-          <ul>
-            <li>Upload, preview, download, and delete your own documents from History.</li>
-            <li>Delete chat history per document from the Chat UI.</li>
-            <li>Update your profile or remove your avatar from Account settings.</li>
-            <li>Request account deletion via support; we’ll remove associated data where possible.</li>
-          </ul>
-        </section>
-
-        <section className="privacy-section">
-          <h2>Contact</h2>
           <p>
-            Questions or requests? Visit the Help Center or reach out via the footer support links.
+            We configure third-party AI services to minimize data retention and disable training 
+            on user content where such controls are available.
+          </p>
+        </section>
+
+        <section className="privacy-section">
+          <h2>6. Data Retention and Deletion</h2>
+          <ul>
+            <li><strong>Active Accounts:</strong> Data is retained while your account remains active</li>
+            <li><strong>Document Deletion:</strong> When you delete a document, the file, extracted text, embeddings, and associated chat history are permanently removed</li>
+            <li><strong>Account Deletion:</strong> You may request complete account deletion via Contact support. We will remove all associated data within 30 days</li>
+            <li><strong>System Logs:</strong> Technical logs are retained for up to 90 days for debugging and security purposes, then automatically purged</li>
+          </ul>
+        </section>
+
+        <section className="privacy-section">
+          <h2>7. Your Rights and Choices</h2>
+          <p>You have the following rights regarding your personal data:</p>
+          <ul>
+            <li><strong>Access:</strong> View your documents, chat history, and account information at any time</li>
+            <li><strong>Correction:</strong> Update your profile information through Account settings</li>
+            <li><strong>Deletion:</strong> Delete individual documents, chat histories, or request full account deletion</li>
+            <li><strong>Export:</strong> Download your uploaded documents from the History panel</li>
+            <li><strong>Withdraw Consent:</strong> Stop using the service at any time; delete your account to remove stored data</li>
+          </ul>
+        </section>
+
+        <section className="privacy-section">
+          <h2>8. Children's Privacy</h2>
+          <p>
+            SmartDocQ is not intended for users under 13 years of age. We do not knowingly 
+            collect personal information from children under 13. If we discover that a child 
+            under 13 has provided personal information, we will promptly delete such data.
+          </p>
+        </section>
+
+        <section className="privacy-section">
+          <h2>9. Changes to This Policy</h2>
+          <p>
+            We may update this Privacy Policy periodically to reflect changes in our practices, 
+            technologies, legal requirements, or other factors. We will notify you of material 
+            changes by posting a prominent notice on our service. Your continued use after such 
+            changes constitutes acceptance of the updated policy.
+          </p>
+        </section>
+
+        <section className="privacy-section">
+          <h2>10. Contact Us</h2>
+          <p>
+            For questions, concerns, or requests regarding this Privacy Policy or your personal 
+            data, please contact us through the Contact form accessible from your dashboard or 
+            visit the Help Center.
           </p>
         </section>
       </div>
