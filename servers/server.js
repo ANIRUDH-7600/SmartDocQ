@@ -6,9 +6,9 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const pino = require("pino");
 const expressPino = require("express-pino-logger");
 const client = require("prom-client");
+const logger = require("./lib/logger");
 
 const authRoutes = require("./routes/auth");
 const documentRoutes = require("./routes/document");
@@ -30,11 +30,6 @@ cloudinary.config({
 });
 
 // ===== Logging (Pino) =====
-const logger = pino({
-  level: process.env.LOG_LEVEL || "info",
-  base: undefined,
-  redact: { paths: ["req.headers.authorization", "req.headers.cookie", "password", "token"], remove: true },
-});
 app.use(expressPino({ logger }));
 
 // ===== Metrics (prom-client) =====

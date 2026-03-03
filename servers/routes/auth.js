@@ -11,6 +11,7 @@ const Chat = require("../models/Chat");
 const Document = require("../models/Document");
 const ContactReport = require("../models/ContactReport");
 const { OAuth2Client } = require('google-auth-library');
+const logger = require("../lib/logger");
 
 // Simple auth middleware to verify JWT and attach userId
 function verifyToken(req, res, next) {
@@ -413,7 +414,7 @@ router.post('/google', async (req, res) => {
       isAdmin: user.isAdmin || false,
     });
   } catch (err) {
-    console.error('Google auth error:', err);
+    logger.error({ err }, "Google auth error");
     return res.status(500).json({ message: 'Google authentication failed', error: err.message });
   }
 });

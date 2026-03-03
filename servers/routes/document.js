@@ -5,6 +5,7 @@ const crypto = require("crypto");
 const Document = require("../models/Document");
 const { verifyToken, ensureActive } = require("./auth");
 const fetch = require("node-fetch");
+const logger = require("../lib/logger");
 
 // Generate content hash for deduplication
 function hashBuffer(buffer) {
@@ -115,13 +116,12 @@ router.post("/upload", verifyToken, ensureActive, upload.single("file"), async (
           finalBuffer = pdfBuffer;
           finalMimetype = "application/pdf";
           finalName = originalname.replace(/\.(docx?|DOCX?)$/, ".pdf");
-          console.log(`Successfully converted ${originalname} to PDF`);
+          logger.info({ file: originalname }, "Successfully converted to PDF");
         } else {
-          console.log(`Conversion failed for ${originalname}, storing original Word document`);
+          logger.warn({ file: originalname }, "Conversion failed, storing original Word document");
         }
       } catch (conversionError) {
-        console.error("Word to PDF conversion error:", conversionError);
-        console.log(`Storing original Word document: ${originalname}`);
+        logger.error({ err: conversionError, file: originalname }, "Word to PDF conversion error");
       }
     }
 
@@ -247,13 +247,12 @@ router.post("/upload/batch", verifyToken, ensureActive, upload.array("files", 10
             finalBuffer = pdfBuffer;
             finalMimetype = "application/pdf";
             finalName = f.originalname.replace(/\.(docx?|DOCX?)$/, ".pdf");
-            console.log(`Successfully converted ${f.originalname} to PDF in batch`);
+            logger.info({ file: f.originalname }, "Successfully converted to PDF in batch");
           } else {
-            console.log(`Conversion failed for ${f.originalname} in batch, storing original`);
+            logger.warn({ file: f.originalname }, "Conversion failed in batch, storing original");
           }
         } catch (conversionError) {
-          console.error("Word to PDF conversion error in batch:", conversionError);
-          console.log(`Storing original Word document in batch: ${f.originalname}`);
+          logger.error({ err: conversionError, file: f.originalname }, "Word to PDF conversion error in batch");
         }
       }
       
@@ -398,19 +397,17 @@ router.delete("/:id", verifyToken, ensureActive, async (req, res) => {
     const documentId = req.params.id;
     const userId = req.userId;
     
-    console.log(`Deleting document ${documentId} for user ${userId}`);
+    logger.info({ documentId, userId }, "Deleting document");
     
     const doc = await Document.findOneAndDelete({ _id: documentId, user: userId });
     if (!doc) return res.status(404).json({ message: "Document not found" });
     
-    console.log(`Document ${documentId} deleted successfully`);
+    logger.info({ documentId }, "Document deleted successfully");
     
     // Also delete associated chat if it exists
     try {
       const Chat = require("../models/Chat");
       const mongoose = require("mongoose");
-      
-      console.log(`Looking for chat with user: ${userId}, document: ${documentId}`);
       
       // Try both string and ObjectId formats for document ID
       const query = { 
@@ -421,27 +418,19 @@ router.delete("/:id", verifyToken, ensureActive, async (req, res) => {
         ]
       };
       
-      console.log(`Query being used:`, JSON.stringify(query, null, 2));
-      
       const deletedChat = await Chat.findOneAndDelete(query);
       
       if (deletedChat) {
-        console.log(`Successfully deleted chat for document ${documentId}. Chat had ${deletedChat.messages.length} messages.`);
-      } else {
-        console.log(`No chat found for document ${documentId}`);
-        
-        // Debug: check if there are any chats for this user
-        const userChats = await Chat.find({ user: mongoose.Types.ObjectId(userId) });
-        console.log(`User has ${userChats.length} total chats:`, userChats.map(c => ({ id: c._id, doc: c.document })));
+        logger.info({ documentId, messageCount: deletedChat.messages.length }, "Deleted associated chat");
       }
     } catch (chatErr) {
-      console.error("Error deleting associated chat:", chatErr);
+      logger.error({ err: chatErr, documentId }, "Error deleting associated chat");
       // Don't fail the document deletion if chat deletion fails
     }
     
     res.json({ message: "Document deleted" });
   } catch (err) {
-    console.error("Error in document deletion:", err);
+    logger.error({ err }, "Error in document deletion");
     res.status(500).json({ message: err.message });
   }
 });

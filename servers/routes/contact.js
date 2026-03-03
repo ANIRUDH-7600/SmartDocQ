@@ -3,6 +3,7 @@ const router = express.Router();
 const ContactReport = require("../models/ContactReport");
 const User = require("../models/User");
 const { verifyToken, ensureActive } = require("./auth");
+const logger = require("../lib/logger");
 
 // Auth-only endpoint to submit contact report
 router.post("/submit", verifyToken, ensureActive, async (req, res) => {
@@ -25,7 +26,7 @@ router.post("/submit", verifyToken, ensureActive, async (req, res) => {
 
     return res.status(201).json({ message: "Your message has been received", id: report._id });
   } catch (err) {
-    console.error("Contact submit error:", err);
+    logger.error({ err }, "Contact submit error");
     return res.status(500).json({ message: "Failed to submit message" });
   }
 });

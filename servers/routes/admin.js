@@ -8,6 +8,7 @@ const { verifyToken } = require("./auth");
 const fetch = require("node-fetch");
 const mongoose = require("mongoose");
 const cloudinary = require('cloudinary').v2;
+const logger = require("../lib/logger");
 
 // Middleware to check if user is admin
 const isAdmin = async (req, res, next) => {
@@ -52,7 +53,7 @@ router.get("/dashboard", verifyToken, isAdmin, async (req, res) => {
       // Prefer storageSize; fallback to dataSize
       storageUsed = Number(dbStats?.storageSize || dbStats?.dataSize || 0);
     } catch (e) {
-      console.warn("Failed to fetch db stats; storageUsed set to 0", e?.message);
+      logger.warn({ err: e }, "Failed to fetch db stats; storageUsed set to 0");
     }
     
     // Get conversion rate
@@ -377,7 +378,7 @@ router.get("/dashboard", verifyToken, isAdmin, async (req, res) => {
     
     res.json({ stats });
   } catch (error) {
-    console.error("Admin dashboard error:", error);
+    logger.error({ err: error }, "Admin dashboard error");
     res.status(500).json({ message: "Failed to load dashboard data" });
   }
 });
@@ -470,7 +471,7 @@ router.get("/users", verifyToken, isAdmin, async (req, res) => {
       totals
     });
   } catch (error) {
-    console.error("Get users error:", error);
+    logger.error({ err: error }, "Get users error");
     res.status(500).json({ message: "Failed to fetch users" });
   }
 });
@@ -514,7 +515,7 @@ router.get("/documents", verifyToken, isAdmin, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Get documents error:", error);
+    logger.error({ err: error }, "Get documents error");
     res.status(500).json({ message: "Failed to fetch documents" });
   }
 });
@@ -561,7 +562,7 @@ router.delete("/users/:id", verifyToken, isAdmin, async (req, res) => {
 
     res.json({ message: "User and associated data deleted successfully", deleted });
   } catch (error) {
-    console.error("Delete user error:", error);
+    logger.error({ err: error }, "Delete user error");
     res.status(500).json({ message: "Failed to delete user" });
   }
 });
@@ -579,7 +580,7 @@ router.delete("/documents/:id", verifyToken, isAdmin, async (req, res) => {
     
     res.json({ message: "Document and associated chats deleted successfully" });
   } catch (error) {
-    console.error("Delete document error:", error);
+    logger.error({ err: error }, "Delete document error");
     res.status(500).json({ message: "Failed to delete document" });
   }
 });
@@ -607,7 +608,7 @@ router.patch("/users/:id/toggle-status", verifyToken, isAdmin, async (req, res) 
       user
     });
   } catch (error) {
-    console.error("Toggle user status error:", error);
+    logger.error({ err: error }, "Toggle user status error");
     res.status(500).json({ message: "Failed to update user status" });
   }
 });
@@ -655,7 +656,7 @@ router.get("/logs", verifyToken, isAdmin, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Get logs error:", error);
+    logger.error({ err: error }, "Get logs error");
     res.status(500).json({ message: "Failed to fetch logs" });
   }
 });
@@ -706,7 +707,7 @@ router.get("/contact-reports", verifyToken, isAdmin, async (req, res) => {
       pagination: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
     });
   } catch (err) {
-    console.error("List contact-reports error:", err);
+    logger.error({ err }, "List contact-reports error");
     res.status(500).json({ message: "Failed to load contact reports" });
   }
 });
@@ -725,7 +726,7 @@ router.patch("/contact-reports/:id", verifyToken, isAdmin, async (req, res) => {
     if (!updated) return res.status(404).json({ message: "Contact report not found" });
     res.json({ item: updated });
   } catch (err) {
-    console.error("Update contact-report error:", err);
+    logger.error({ err }, "Update contact-report error");
     res.status(500).json({ message: "Failed to update contact report" });
   }
 });
@@ -737,7 +738,7 @@ router.delete("/contact-reports/:id", verifyToken, isAdmin, async (req, res) => 
     if (!result) return res.status(404).json({ message: "Contact report not found" });
     res.json({ message: "Contact report deleted" });
   } catch (err) {
-    console.error("Delete contact-report error:", err);
+    logger.error({ err }, "Delete contact-report error");
     res.status(500).json({ message: "Failed to delete contact report" });
   }
 });
@@ -779,7 +780,7 @@ router.get("/contact-reports/analytics/summary", verifyToken, isAdmin, async (re
 
     res.json({ total, resolved, new: newCount, unread, byCategory });
   } catch (err) {
-    console.error("Reports summary error:", err);
+    logger.error({ err }, "Reports summary error");
     res.status(500).json({ message: "Failed to load summary" });
   }
 });
@@ -800,7 +801,7 @@ router.get("/contact-reports/analytics/timeseries", verifyToken, isAdmin, async 
     ]);
     res.json({ series });
   } catch (err) {
-    console.error("Reports timeseries error:", err);
+    logger.error({ err }, "Reports timeseries error");
     res.status(500).json({ message: "Failed to load time series" });
   }
 });
