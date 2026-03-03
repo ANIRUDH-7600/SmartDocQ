@@ -15,6 +15,7 @@ import HelpCenter from './Components/HelpCenter';
 import PrivacyPolicy from './Components/PrivacyPolicy';
 import TermsOfService from './Components/TermsOfService';
 import ShareChat from './Components/ShareChat';
+import ScrollToTop from './Components/ScrollToTop';
 
 function App() {
   return (                                      
@@ -47,7 +48,9 @@ function Main() {
   }, []);
 
   return (
-    <Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
       <Route 
         path="/" 
         element={
@@ -132,6 +135,7 @@ function Main() {
         }
       />
     </Routes>
+    </>
   );
 }
 
