@@ -136,42 +136,6 @@
   outline-offset: 2px;
 }
 
-/* Popup loading state */
-.popup-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  color: #666;
-  font-size: 16px;
-}
-
-/* Popup error state */
-.popup-error {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  gap: 12px;
-  color: #dc3545;
-  font-size: 14px;
-}
-
-.popup-error button {
-  padding: 8px 16px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-}
-
-.popup-error button:hover {
-  background: #0056b3;
-}
-
 .overlay {
   position: fixed; /* ensures it's always on top of viewport */
   top: 0;
@@ -300,7 +264,6 @@
   height: 16px;
   pointer-events: none;
   flex-shrink: 0;
-  fill: currentColor; /* For inline SVG icons */
 }
 .upload-navbar{
   background-color:#000000;
