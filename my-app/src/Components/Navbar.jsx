@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "./navbar.css";
 import logo from "./logo.png";
@@ -11,24 +11,107 @@ import Account from "./Account";
 import { useToast } from "./ToastContext";
 import { apiFetch } from "../config";
 
+/* ============================================================================
+ * USER DATA VALIDATION UTILITIES
+ * Provides secure parsing and validation of user data from localStorage.
+ * Prevents XSS attacks and handles corrupted/malformed data gracefully.
+ * ============================================================================ */
+
+/**
+ * Safely parses and validates user data from a JSON string.
+ * Implements strict type checking and field validation to prevent
+ * security vulnerabilities from malformed or malicious data.
+ * 
+ * @param {string|null} jsonStr - Raw JSON string from localStorage
+ * @returns {Object|null} Sanitized user object or null if invalid
+ */
+const safeParseUser = (jsonStr) => {
+  if (!jsonStr || typeof jsonStr !== "string") return null;
+  
+  try {
+    const parsed = JSON.parse(jsonStr);
+    
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    
+    const { _id, id, email, name } = parsed;
+    const userId = _id || id;
+    
+    if (!userId || typeof userId !== "string") return null;
+    if (!email || typeof email !== "string" || !email.includes("@")) return null;
+    if (!name || typeof name !== "string" || name.trim().length === 0) return null;
+    
+    return {
+      _id: userId,
+      id: userId,
+      email: email.trim().toLowerCase(),
+      name: name.trim(),
+      avatar: typeof parsed.avatar === "string" ? parsed.avatar : null,
+      role: typeof parsed.role === "string" ? parsed.role : "user",
+    };
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Removes invalid user data from localStorage.
+ * Called when corrupted data is detected during initialization.
+ */
+const clearInvalidUserData = () => {
+  try {
+    localStorage.removeItem("user");
+  } catch {
+    // Storage API unavailable (private browsing, etc.)
+  }
+};
+
+/* ============================================================================
+ * NAVBAR COMPONENT
+ * Main navigation bar with authentication, mobile responsiveness,
+ * and accessible dialog management for login, contact, and account modals.
+ * ============================================================================ */
+
 function Navbar() {
+  // Authentication and UI state
   const [popup, setPopup] = useState(null);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Routing hooks
   const navigate = useNavigate();
   const location = useLocation();
+  
+  // DOM references
   const profileRef = useRef();
-  const { showToast } = useToast(); 
+  
+  // Toast notifications
+  const { showToast } = useToast();
 
+  /* --------------------------------------------------------------------------
+   * INITIALIZATION: Load and validate user from localStorage
+   * -------------------------------------------------------------------------- */
   useEffect(() => {
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) setUser(JSON.parse(savedUser));
+    try {
+      const savedUser = localStorage.getItem("user");
+      const parsed = safeParseUser(savedUser);
+      
+      if (savedUser && !parsed) {
+        clearInvalidUserData();
+      }
+      setUser(parsed);
+    } catch {
+      setUser(null);
+    }
     setLoading(false);
   }, []);
 
+  /* --------------------------------------------------------------------------
+   * CLICK OUTSIDE HANDLER: Close profile dropdown when clicking elsewhere
+   * -------------------------------------------------------------------------- */
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
@@ -39,7 +122,9 @@ function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Proper scroll locking for popups and mobile menu + ESC-to-close
+  /* --------------------------------------------------------------------------
+   * SCROLL LOCK & KEYBOARD: Lock body scroll when modals open, ESC to close
+   * -------------------------------------------------------------------------- */
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key === "Escape") {
@@ -50,7 +135,6 @@ function Navbar() {
     };
 
     const shouldLock = !!popup || isMobileMenuOpen;
-    // Lock scroll on both html and body for robustness across browsers
     document.documentElement.style.overflow = shouldLock ? "hidden" : "";
     document.body.style.overflow = shouldLock ? "hidden" : "";
     document.body.style.overscrollBehavior = shouldLock ? "contain" : "";
@@ -64,18 +148,23 @@ function Navbar() {
     };
   }, [popup, isMobileMenuOpen, showProfileMenu]);
 
-  // Storage sync across tabs for auth changes
+  /* --------------------------------------------------------------------------
+   * CROSS-TAB SYNC: Synchronize auth state across browser tabs
+   * -------------------------------------------------------------------------- */
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === "user") {
-        setUser(e.newValue ? JSON.parse(e.newValue) : null);
+        const parsed = safeParseUser(e.newValue);
+        setUser(parsed);
       }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // Close mobile menu on route change or when window resizes to desktop
+  /* --------------------------------------------------------------------------
+   * RESPONSIVE BEHAVIOR: Auto-close mobile menu on route change or resize
+   * -------------------------------------------------------------------------- */
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
@@ -88,6 +177,11 @@ function Navbar() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  /* --------------------------------------------------------------------------
+   * EVENT HANDLERS
+   * -------------------------------------------------------------------------- */
+
+  /** Scroll to features section with cross-page navigation support */
   const scrollToFeatures = () => {
     if (location.pathname !== "/") {
       navigate("/");
@@ -101,11 +195,12 @@ function Navbar() {
     }
   };
 
+  /** Handle user logout with server-side session invalidation */
   const handleLogout = async () => {
     try {
       await apiFetch("/api/auth/logout", { method: "POST" });
     } catch {
-      // Continue with local logout
+      // Proceed with local logout even if server call fails
     }
     setUser(null);
     setShowProfileMenu(false);
@@ -113,30 +208,72 @@ function Navbar() {
     showToast("Logout successful", { type: "success" }); 
     navigate("/"); 
   };
+
+  /** Memoized popup close handler for dialog accessibility */
+  const closePopup = useCallback(() => setPopup(null), []);
+
+  /** Validates and updates user state with sanitized data */
+  const handleAuthSuccess = useCallback((userData) => {
+    const validated = safeParseUser(JSON.stringify(userData));
+    if (validated) {
+      setUser(validated);
+      localStorage.setItem("user", JSON.stringify(validated));
+    }
+    setPopup(null);
+  }, []);
+
+  /** Validates and persists user profile updates */
+  const handleUserUpdate = useCallback((userData) => {
+    const validated = safeParseUser(JSON.stringify(userData));
+    if (validated) {
+      setUser(validated);
+      localStorage.setItem("user", JSON.stringify(validated));
+    }
+  }, []);
+
   const isUploadPage = location.pathname === "/upload";
 
+  /* --------------------------------------------------------------------------
+   * RENDER
+   * -------------------------------------------------------------------------- */
   return (
     <>
-      <div className={`navbar ${isUploadPage ? "upload-navbar" : ""} ${isMobileMenuOpen ? "mobile-open" : ""}`}>
-        <div className="a"><img className="logo" src={logo} alt="Logo" /></div>
+      {/* Accessible Skip Link for Keyboard Navigation */}
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+
+      {/* Primary Navigation */}
+      <nav
+        className={`navbar ${isUploadPage ? "upload-navbar" : ""} ${isMobileMenuOpen ? "mobile-open" : ""}`}
+        role="navigation"
+        aria-label="Main navigation"
+      >
+        <div className="a">
+          <a href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} aria-label="SmartDoc Home">
+            <img className="logo" src={logo} alt="SmartDoc Logo" />
+          </a>
+        </div>
 
         <button
           className={`menu-toggle ${isMobileMenuOpen ? "open" : ""}`}
-          aria-label="Toggle navigation menu"
+          aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
           aria-controls="nav-links"
           aria-expanded={isMobileMenuOpen}
           onClick={() => setIsMobileMenuOpen((v) => !v)}
+          type="button"
         >
-          <span></span>
-          <span></span>
-          <span></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
+          <span aria-hidden="true"></span>
         </button>
 
-        <div id="nav-links" className="mid">
-          <a href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }}>Home</a>
-          <a href="#feat" onClick={(e) => { e.preventDefault(); scrollToFeatures(); setIsMobileMenuOpen(false); }}>Features</a>
+        <div id="nav-links" className="mid" role="menubar" aria-label="Main menu">
+          <a href="/" role="menuitem" onClick={(e) => { e.preventDefault(); navigate("/"); }}>Home</a>
+          <a href="#feat" role="menuitem" onClick={(e) => { e.preventDefault(); scrollToFeatures(); setIsMobileMenuOpen(false); }}>Features</a>
           <a
-            href="/"
+            href="/contact"
+            role="menuitem"
             onClick={(e) => {
               e.preventDefault();
               if (!user) {
@@ -155,53 +292,97 @@ function Navbar() {
           {!loading && (
             user ? (
               <div className="profile-section" ref={profileRef}>
-                <img
-                  src={user?.avatar ? user.avatar : icon}
-                  alt="Profile"
-                  className="avatar"
-                  style={{ cursor: "pointer", userSelect: "none" }}
+                <button
+                  type="button"
+                  className="avatar-btn"
+                  aria-label="Open user menu"
+                  aria-haspopup="true"
+                  aria-expanded={showProfileMenu}
+                  aria-controls="profile-menu"
                   onClick={() => setShowProfileMenu((prev) => !prev)}
-                />
+                >
+                  <img
+                    src={user?.avatar ? user.avatar : icon}
+                    alt={`${user?.name || "User"} profile`}
+                    className="avatar"
+                  />
+                </button>
                 {showProfileMenu && (
-                  <div className="profile-dropdown">
-                    <a className="dd" href="/" onClick={(e) => { e.preventDefault(); setPopup("account"); setShowProfileMenu(false); }}>
-                      <img src={lg1} alt="/" className="dpi" />Profile
+                  <div
+                    id="profile-menu"
+                    className="profile-dropdown"
+                    role="menu"
+                    aria-label="User menu"
+                  >
+                    <a className="dd" href="/profile" role="menuitem" onClick={(e) => { e.preventDefault(); setPopup("account"); setShowProfileMenu(false); }}>
+                      <img src={lg1} alt="" className="dpi" aria-hidden="true" />Profile
                     </a>
-                    <a className="dd" href="/" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
-                      <img src={lg} alt="/" className="dpi" />Logout
+                    <a className="dd" href="/logout" role="menuitem" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
+                      <img src={lg} alt="" className="dpi" aria-hidden="true" />Logout
                     </a>
                   </div>
                 )}
               </div>
             ) : (
-              <button onClick={() => { setPopup("login"); setIsMobileMenuOpen(false); }}>Login</button>
+              <button type="button" aria-label="Open login form" onClick={() => { setPopup("login"); setIsMobileMenuOpen(false); }}>Login</button>
             )
           )}
         </div>
-      </div>
+      </nav>
 
+      {/* Authentication Dialog */}
       {popup === "login" && (
-        <div className="overlay" onClick={() => setPopup(null)}>
-          <div className="popup" onClick={(e) => e.stopPropagation()}>
-            <button className="close-btn" onClick={() => setPopup(null)}>✕</button>
-            <Login
-              onAuthSuccess={(userData) => {
-                setUser(userData);
-                localStorage.setItem("user", JSON.stringify(userData));
-
-                setPopup(null);
-              }}
-            />
+        <div
+          className="overlay"
+          onClick={closePopup}
+          role="presentation"
+        >
+          <div
+            className="popup"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="login-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="login-dialog-title" className="sr-only">Login or Sign Up</h2>
+            <button
+              className="close-btn"
+              onClick={closePopup}
+              aria-label="Close login dialog"
+              type="button"
+            >
+              ✕
+            </button>
+            <Login onAuthSuccess={handleAuthSuccess} />
           </div>
         </div>
       )}
 
+      {/* Contact Form Dialog */}
       {popup === "contact" && (
-        <div className="overlay" onClick={() => setPopup(null)}>
-          <div className="popup contact-popup" onClick={(e) => e.stopPropagation()}>
-            <button className="close-btn" onClick={() => setPopup(null)}>✕</button>
+        <div
+          className="overlay"
+          onClick={closePopup}
+          role="presentation"
+        >
+          <div
+            className="popup contact-popup"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="contact-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="contact-dialog-title" className="sr-only">Contact Us</h2>
+            <button
+              className="close-btn"
+              onClick={closePopup}
+              aria-label="Close contact dialog"
+              type="button"
+            >
+              ✕
+            </button>
             <Contact
-              onSuccess={() => setPopup(null)}
+              onSuccess={closePopup}
               defaultName={user?.name}
               defaultEmail={user?.email}
             />
@@ -209,11 +390,12 @@ function Navbar() {
         </div>
       )}
 
+      {/* Account Settings Dialog */}
       {popup === "account" && (
         <Account
           user={user}
-          onClose={() => setPopup(null)}
-          onUpdated={(u) => setUser(u)}
+          onClose={closePopup}
+          onUpdated={handleUserUpdate}
         />
       )}
     </>
