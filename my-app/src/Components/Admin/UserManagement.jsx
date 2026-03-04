@@ -149,6 +149,7 @@ const UserManagement = ({ users = [], onRefresh }) => {
           "Content-Type": "application/json"
         },
         credentials: "include"
+      });
 
       if (!response.ok) {
         // Revert on error
