@@ -187,6 +187,7 @@
   color: #f1f1f1;
   text-decoration: none !important;
   box-shadow: none !important;
+  text-align: left;
 }
 
 .dd:hover {

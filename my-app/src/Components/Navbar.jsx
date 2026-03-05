@@ -116,7 +116,12 @@ function Navbar() {
    * -------------------------------------------------------------------------- */
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
+      const root = profileRef.current;
+      if (!root) return;
+
+      const path = typeof e.composedPath === "function" ? e.composedPath() : null;
+      const isInside = path ? path.includes(root) : root.contains(e.target);
+      if (!isInside) {
         setShowProfileMenu(false);
       }
     };
@@ -314,13 +319,27 @@ function Navbar() {
                       className="profile-dropdown"
                       role="menu"
                       aria-label="User menu"
+                      onMouseDown={(e) => e.stopPropagation()}
                     >
-                      <a className="dd" href="/profile" role="menuitem" onClick={(e) => { e.preventDefault(); setPopup("account"); setShowProfileMenu(false); }}>
+                      <button
+                        className="dd"
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setPopup("account");
+                          setShowProfileMenu(false);
+                        }}
+                      >
                         <img src={lg1} alt="" className="dpi" aria-hidden="true" />Profile
-                      </a>
-                      <a className="dd" href="/logout" role="menuitem" onClick={(e) => { e.preventDefault(); handleLogout(); }}>
+                      </button>
+                      <button
+                        className="dd"
+                        type="button"
+                        role="menuitem"
+                        onClick={handleLogout}
+                      >
                         <img src={lg} alt="" className="dpi" aria-hidden="true" />Logout
-                      </a>
+                      </button>
                     </div>
                   )}
                 </div>
