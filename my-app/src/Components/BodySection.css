@@ -234,7 +234,7 @@
   .video-wrapper {
     position: relative;
     width: 100%;
-    height: 100%;
+    aspect-ratio: 16 / 9;
     min-height: 520px;
     border-radius: 15px;
     overflow: hidden;
@@ -384,6 +384,11 @@
     .video-wrapper,
     .steps-section {
       min-height: 0;
+    }
+
+    /* Keep the video area visible even on small screens */
+    .video-wrapper {
+      min-height: 220px;
     }
   }
 
