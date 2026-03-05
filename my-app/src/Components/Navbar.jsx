@@ -233,16 +233,20 @@ function Navbar() {
 
   /** Handle user logout with server-side session invalidation */
   const handleLogout = async () => {
-    try {
-      await apiFetch("/api/auth/logout", { method: "POST" });
-    } catch {
-      // Proceed with local logout even if server call fails
-    }
-    setUser(null);
+    // Update UI immediately (don't wait on network).
     setShowProfileMenu(false);
-    localStorage.removeItem("user");
-    showToast("Logout successful", { type: "success" }); 
-    navigate("/"); 
+    setUser(null);
+    try {
+      localStorage.removeItem("user");
+    } catch {
+      // Storage might be unavailable; continue anyway.
+    }
+
+    showToast("Logout successful", { type: "success" });
+    navigate("/");
+
+    // Best-effort server logout in the background.
+    apiFetch("/api/auth/logout", { method: "POST" }).catch(() => {});
   };
 
   /** Memoized popup close handler for dialog accessibility */
