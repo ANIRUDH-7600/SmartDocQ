@@ -137,6 +137,7 @@ const ClickSpark = ({
         position: "relative",
         width: "100%",
         height: "100%",
+        isolation: "isolate",
       }}
       onClick={handleClick}
     >
@@ -150,10 +151,13 @@ const ClickSpark = ({
           position: "absolute",
           top: 0,
           left: 0,
+          zIndex: 2,
           pointerEvents: "none",
         }}
       />
-      {children}
+      <div style={{ position: "relative", zIndex: 1 }}>
+        {children}
+      </div>
     </div>
   );
 };
