@@ -224,7 +224,7 @@
 
   /* Video (center, 70%) */
   .video-section {
-    flex: 1 1 640px;
+    flex: 0 1 65%;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -235,6 +235,10 @@
     position: relative;
     width: 100%;
     height: 100%;
+    min-height: 520px;
+    border-radius: 15px;
+    overflow: hidden;
+    background: #000;
   }
 
   .video-thumb {
@@ -242,42 +246,39 @@
     inset: 0;
     width: 100%;
     height: 100%;
-    max-height: 450px;
-    border-radius: 15px;
-    aspect-ratio: 16/9;
     object-fit: cover;
     display: block;
+    opacity: 1;
+    transition: opacity 220ms ease-out;
   }
 
   .video-thumb.hidden {
-    display: none;
+    opacity: 0;
   }
 
   .demo-video {
-    display: none;
+    display: block;
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
-    max-height: 450px;
-    border-radius: 15px;
-    aspect-ratio: 16/9;
     object-fit: cover;
+    opacity: 0;
+    transition: opacity 220ms ease-out;
   }
 
   .demo-video.visible {
-    display: block;
+    opacity: 1;
   }
 
   .video-section video {
     width: 100%;
     height: 100%;
-    max-height: 450px;
-    border-radius: 15px;
-    aspect-ratio: 16/9;
     object-fit: cover;
   }
 
   .steps-section {
-    flex: 1 1 320px;
+    flex: 0 1 35%;
     display: flex;
     flex-direction: column;
     gap: 20px;
@@ -287,6 +288,7 @@
     -webkit-user-drag: none;
     text-align: center;
     min-width: 280px;
+    min-height: 520px;
   }
 
 .step {
@@ -379,6 +381,15 @@
     .steps-section {
       margin-top: 20px;
     }
+    .video-wrapper,
+    .steps-section {
+      min-height: 0;
+    }
+  }
+
+  /* Keep the two-column layout on wider screens */
+  @media (min-width: 901px) {
+    .container { flex-wrap: nowrap; }
   }
 
 /* Prefer reduced motion for this section */

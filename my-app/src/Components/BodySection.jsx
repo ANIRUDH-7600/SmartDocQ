@@ -97,7 +97,9 @@ const VideoSection = () => {
           }
         }
       },
-      { threshold: 0.05 }
+      // Start the swap slightly BEFORE the section is in view so the user
+      // doesn't see the thumbnail-to-video transition.
+      { threshold: 0.01, rootMargin: "0px 0px 120px 0px" }
     );
 
     observer.observe(container);
