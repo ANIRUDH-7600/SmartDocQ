@@ -21,6 +21,12 @@ const shareRoutes = require("./routes/share");
 
 const app = express();
 
+// In production, we may be behind a reverse proxy (Render/Vercel/etc.).
+// This ensures req.ip is derived correctly from X-Forwarded-For.
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 // Cloudinary config (reads from environment)
 const cloudinary = require("cloudinary").v2;
 cloudinary.config({

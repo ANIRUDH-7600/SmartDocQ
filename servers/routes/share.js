@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
+const rateLimit = require("express-rate-limit");
 const { verifyToken, ensureActive } = require("./auth");
 const Chat = require("../models/Chat");
 const Document = require("../models/Document");
@@ -8,9 +9,26 @@ const SharedChat = require("../models/SharedChat");
 const PDFDocument = require("pdfkit");
 
 function genShareId() {
-  // 12-char URL-safe id
-  return crypto.randomBytes(9).toString("base64url");
+  // High-entropy, URL-safe id (32 chars base64url, ~192 bits)
+  // 24 bytes -> 32 base64 characters with no padding
+  return crypto.randomBytes(24).toString("base64url");
 }
+
+function isValidShareId(shareId) {
+  // Backward compatible with older shares, while allowing new high-entropy ids.
+  // - legacy: 12 chars
+  // - current: 32 chars (base64url)
+  return typeof shareId === "string" && /^(?:[A-Za-z0-9_-]{12}|[A-Za-z0-9_-]{16,64})$/.test(shareId);
+}
+
+// Public share endpoints can be hammered; rate limit by IP.
+const publicShareLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later." },
+});
 
 // Create a share snapshot from current user's chat for a document
 // Change detection: if the latest snapshot for this user+doc has the same content hash,
@@ -49,7 +67,7 @@ router.post("/chat/:documentId", verifyToken, ensureActive, async (req, res) => 
       latest.expiresAt = nextExpiry;
       latest.messageCount = Array.isArray(chat.messages) ? chat.messages.length : 0;
       await latest.save();
-      return res.json({ shareId: latest.shareId });
+      return res.json({ shareId: latest.shareId, title: latest.title || doc.name });
     }
 
     // Create unique id, retry on collision (very unlikely)
@@ -77,16 +95,19 @@ router.post("/chat/:documentId", verifyToken, ensureActive, async (req, res) => 
       expiresAt: nextExpiry,
     });
 
-    res.json({ shareId: snapshot.shareId });
+    res.json({ shareId: snapshot.shareId, title: snapshot.title });
   } catch (err) {
     res.status(500).json({ message: err.message || "Failed to create share" });
   }
 });
 
 // Public: resolve a shareId and return snapshot (honors expiration)
-router.get("/:shareId", async (req, res) => {
+router.get("/:shareId", publicShareLimiter, async (req, res) => {
   try {
     const { shareId } = req.params;
+    if (!isValidShareId(shareId)) {
+      return res.status(400).json({ message: "Invalid share id" });
+    }
     const snap = await SharedChat.findOne({ shareId }).populate("document", "name");
     if (!snap) return res.status(404).json({ message: "Share not found" });
     // Explicit expiration check in case TTL hasn't pruned yet
@@ -110,9 +131,12 @@ router.get("/:shareId", async (req, res) => {
 module.exports = router;
 
 // Export shared chat as PDF (public)
-router.get("/:shareId/export.pdf", async (req, res) => {
+router.get("/:shareId/export.pdf", publicShareLimiter, async (req, res) => {
   try {
     const { shareId } = req.params;
+    if (!isValidShareId(shareId)) {
+      return res.status(400).json({ message: "Invalid share id" });
+    }
     const snap = await SharedChat.findOne({ shareId }).populate("document", "name");
     if (!snap) return res.status(404).json({ message: "Share not found" });
     if (snap.expiresAt && snap.expiresAt.getTime() <= Date.now()) {
