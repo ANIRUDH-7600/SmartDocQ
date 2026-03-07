@@ -359,15 +359,23 @@ const ShareControl = ({ documentId, chat }) => {
     });
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.message || 'Failed to create share link');
-    return `${window.location.origin}/share/${json.shareId}`;
+
+    const shareUrl = `${window.location.origin}/share/${json.shareId}`;
+    const title = (json.title || json.documentTitle || 'Shared Chat').toString().trim();
+    return { shareUrl, title };
+  };
+
+  const buildShareMessage = (title, shareUrl) => {
+    const safeTitle = (title || 'Shared Chat').toString().trim() || 'Shared Chat';
+    return `${safeTitle} — Shared via SmartDocQ (expires in 24h)\n${shareUrl}`;
   };
 
   // Copy link flow (uses createShareLink)
   const createShareAndCopy = async () => {
     try {
       setCreating(true);
-      const link = await createShareLink();
-      await navigator.clipboard.writeText(link);
+      const { shareUrl } = await createShareLink();
+      await navigator.clipboard.writeText(shareUrl);
       showToast('Share link copied', { type: 'success' });
       setOpen(false);
     } catch (err) {
@@ -386,8 +394,8 @@ const ShareControl = ({ documentId, chat }) => {
   const shareToWhatsApp = async () => {
     try {
       setCreating(true);
-      const link = await createShareLink();
-      const text = `Shared chat from SmartDocQ (expires in 24h) ${link}`;
+      const { shareUrl, title } = await createShareLink();
+      const text = buildShareMessage(title, shareUrl);
       const encoded = encodeURIComponent(text);
       const appUrl = `whatsapp://send?text=${encoded}`;
       const webUrl = `https://wa.me/?text=${encoded}`;
@@ -428,8 +436,8 @@ const ShareControl = ({ documentId, chat }) => {
   const shareToX = async () => {
     try {
       setCreating(true);
-      const link = await createShareLink();
-      const text = `Shared chat from SmartDocQ (expires in 24h) ${link}`;
+      const { shareUrl, title } = await createShareLink();
+      const text = buildShareMessage(title, shareUrl);
       const encoded = encodeURIComponent(text);
       const webUrl = `https://twitter.com/intent/tweet?text=${encoded}`;
       const ua = navigator.userAgent || '';
@@ -477,9 +485,9 @@ const ShareControl = ({ documentId, chat }) => {
   const shareToEmail = async () => {
     try {
       setCreating(true);
-      const link = await createShareLink();
-      const subject = 'Shared chat from SmartDocQ (expires in 24h)';
-      const body = `Shared chat from SmartDocQ (expires in 24h)\n\n${link}`;
+      const { shareUrl, title } = await createShareLink();
+      const subject = `${(title || 'Shared Chat').toString().trim() || 'Shared Chat'} — Shared via SmartDocQ (expires in 24h)`;
+      const body = buildShareMessage(title, shareUrl);
       const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       const gmailWeb = `https://mail.google.com/mail/?view=cm&fs=1&tf=1&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
