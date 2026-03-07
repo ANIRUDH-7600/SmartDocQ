@@ -12,6 +12,7 @@
     "axios": "^1.12.2",
     "bad-words": "^4.0.0",
     "class-variance-authority": "^0.7.1",
+    "dompurify": "^3.3.2",
     "framer-motion": "^12.23.12",
     "gsap": "^3.13.0",
     "lottie-react": "^2.4.1",

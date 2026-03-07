@@ -1,8 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { apiUrl } from '../config';
 import './Chat.css';
 import { useToast } from './ToastContext';
+import { exportSharedChat, getSharedChat } from '../Services/ServiceChat';
+import DOMPurify from 'dompurify';
+
+const formatToSafeHtml = (text) => {
+  if (!text) return '';
+  const normalized = String(text).replace(/\r\n/g, '\n');
+  let html = normalized;
+  html = html.replace(/\n\n+/g, '</p><p>');
+  html = html.replace(/\n/g, '<br />');
+  if (!html.includes('<p>')) html = `<p>${html}</p>`;
+
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br'],
+    ALLOWED_ATTR: [],
+  });
+};
 
 const ShareChat = () => {
   const { shareId } = useParams();
@@ -13,34 +28,65 @@ const ShareChat = () => {
   const [messages, setMessages] = useState([]);
   const [expiresAt, setExpiresAt] = useState(null);
   const [countdown, setCountdown] = useState('');
+  const [isExpired, setIsExpired] = useState(false);
   const chatEndRef = useRef(null);
+  const exportControllerRef = useRef(null);
 
   useEffect(() => {
+    return () => {
+      exportControllerRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
     const run = async () => {
       try {
         setLoading(true);
-        const res = await fetch(apiUrl(`/api/share/${shareId}`));
-        const json = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(json.message || 'Failed to load shared chat');
+        setError('');
+        setIsExpired(false);
+        setCountdown('');
+        const json = await getSharedChat(shareId, { signal: controller.signal });
         setTitle(json.title || 'Shared Chat');
         setMessages(Array.isArray(json.messages) ? json.messages : []);
         setExpiresAt(json.expiresAt || null);
       } catch (e) {
+        if (e?.name === 'AbortError') return;
         setError(e.message || 'Unable to load share');
       } finally {
+        if (controller.signal.aborted) return;
         setLoading(false);
       }
     };
     run();
+    return () => controller.abort();
   }, [shareId]);
 
   // countdown timer
   useEffect(() => {
-    if (!expiresAt) return;
+    if (!expiresAt) {
+      setIsExpired(false);
+      setCountdown('');
+      return;
+    }
     const end = new Date(expiresAt).getTime();
+    if (Number.isNaN(end)) return;
+
+    let intervalId;
     const tick = () => {
       const now = Date.now();
       const diff = Math.max(0, end - now);
+
+      if (diff === 0) {
+        setCountdown('00h 00m 00s');
+        setIsExpired(true);
+        setError((prev) => prev || 'This share has expired');
+        if (intervalId) clearInterval(intervalId);
+        return;
+      }
+
+      setIsExpired(false);
       const s = Math.floor(diff / 1000);
       const hh = String(Math.floor(s / 3600)).padStart(2, '0');
       const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
@@ -48,18 +94,24 @@ const ShareChat = () => {
       setCountdown(`${hh}h ${mm}m ${ss}s`);
     };
     tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+    intervalId = setInterval(tick, 1000);
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [expiresAt]);
 
   const exportShared = async () => {
     try {
-      const res = await fetch(apiUrl(`/api/share/${shareId}/export.pdf`));
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({ message: 'Failed to export shared chat' }));
-        throw new Error(j.message || 'Failed to export shared chat');
+      if (isExpired) {
+        showToast('This share has expired', { type: 'error' });
+        return;
       }
-      const blob = await res.blob();
+
+      exportControllerRef.current?.abort();
+      const controller = new AbortController();
+      exportControllerRef.current = controller;
+
+      const blob = await exportSharedChat(shareId, { signal: controller.signal });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -69,7 +121,8 @@ const ShareChat = () => {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (e) {
-      setError(e.message || 'Export failed');
+      if (e?.name === 'AbortError') return;
+      showToast(e?.message || 'Export failed', { type: 'error' });
     }
   };
 
@@ -79,6 +132,10 @@ const ShareChat = () => {
 
   const copyToClipboard = (text) => {
     if (!text) return;
+    if (isExpired) {
+      showToast('This share has expired', { type: 'error' });
+      return;
+    }
     navigator.clipboard.writeText(text).then(() => {
       showToast('Message copied to clipboard', { type: 'success' });
     }).catch(() => {
@@ -86,19 +143,9 @@ const ShareChat = () => {
     });
   };
 
-  const format = (text) => {
-    if (!text) return '';
-    const esc = (s) => s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-    let html = esc(text);
-    html = html.replace(/\n\n/g, '</p><p>');
-    html = html.replace(/\n/g, '<br>');
-    if (!html.includes('<p>')) html = `<p>${html}</p>`;
-    return html;
+  const getMessageKey = (m, i) => {
+    if (!m || typeof m !== 'object') return i;
+    return m.id ?? m._id ?? m.timestamp ?? m.createdAt ?? i;
   };
 
   return (
@@ -108,16 +155,19 @@ const ShareChat = () => {
           <h2 className="share-title">{title}</h2>
         </div>
         <div className="share-center">
-          {expiresAt && !error && (
+          {expiresAt && !loading && isExpired ? (
+            <div className="share-countdown">This share has expired</div>
+          ) : expiresAt && !error ? (
             <div className="share-countdown">Expires in {countdown}</div>
-          )}
+          ) : null}
         </div>
         <div className="share-right">
           <button
             className="export-chat-button"
             onClick={exportShared}
             title="Export shared chat"
-            disabled={loading || !!error || messages.length === 0}
+            aria-label="Export shared chat"
+            disabled={loading || !!error || isExpired || messages.length === 0}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -135,13 +185,13 @@ const ShareChat = () => {
         ) : messages.length === 0 ? (
           <div className="chat-empty-state"><p className="chat-empty">No messages</p></div>
         ) : (
-          <ul className="chat-list">
+          <ul className="chat-list" role="log" aria-live="polite" aria-relevant="additions text">
             {messages.map((m, i) => (
-              <li key={i} className={`chat-item ${m.role}`}>
+              <li key={getMessageKey(m, i)} className={`chat-item ${m.role}`}>
                 <div className="chat-bubble">
                   <div
                     className="chat-message-content"
-                    dangerouslySetInnerHTML={{ __html: format(m.text) }}
+                    dangerouslySetInnerHTML={{ __html: formatToSafeHtml(m.text) }}
                   />
                 </div>
                 <div className="message-actions">
@@ -150,6 +200,7 @@ const ShareChat = () => {
                     onClick={() => copyToClipboard(m.text)}
                     title="Copy message"
                     aria-label="Copy message"
+                    disabled={isExpired}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
