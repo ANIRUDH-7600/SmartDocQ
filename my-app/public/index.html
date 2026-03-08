@@ -4,10 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <title>SmartDocQ – Learn Smarter with AI-Powered Document Intelligence</title>
+    <title>SmartDocQ – AI Document Intelligence Platform</title>
     <link rel="canonical" href="https://smartdocq.vercel.app/" />
     <link rel="icon" href="web-logo.png" />
     <link rel="apple-touch-icon" href="/web-logo.png" />
+    <link rel="manifest" href="/manifest.json" />
     <meta name="robots" content="index, follow" />
     <meta
       name="description"
@@ -33,9 +34,10 @@
     <meta property="og:site_name" content="SmartDocQ" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:title" content="SmartDocQ – AI Document Intelligence Platform" />
-    <meta property="og:description" content="Explore AI-powered insights from a shared document. Powered by SmartDocQ." />
+    <meta property="og:description" content="Query, summarize, and learn from your documents using Gemini AI and RAG." />
     <meta property="og:url" content="https://smartdocq.vercel.app/" />
     <meta property="og:image" content="https://smartdocq.vercel.app/og-preview.png" />
+    <meta property="og:image:alt" content="SmartDocQ AI Document Intelligence platform preview" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
 
@@ -65,13 +67,21 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "WebSite",
+        "@type": "SoftwareApplication",
         "name": "SmartDocQ",
         "url": "https://smartdocq.vercel.app/",
-        "potentialAction": {
-          "@type": "SearchAction",
-          "target": "https://smartdocq.vercel.app/?q={search_term_string}",
-          "query-input": "required name=search_term_string"
+        "applicationCategory": "EducationalApplication",
+        "operatingSystem": "Web",
+        "description": "SmartDocQ is an AI-powered document intelligence platform that lets users query, summarize, and learn from documents using Gemini AI and Retrieval-Augmented Generation (RAG).",
+        "image": "https://smartdocq.vercel.app/og-preview.png",
+        "creator": {
+          "@type": "Organization",
+          "name": "SmartDocQ"
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "INR"
         }
       }
     </script>

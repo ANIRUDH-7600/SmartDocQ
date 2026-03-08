@@ -1,0 +1,19 @@
+# SmartDocQ
+
+SmartDocQ is an AI-powered document intelligence platform that allows users to upload documents and query them using Gemini AI and Retrieval-Augmented Generation (RAG).
+
+## Features
+- Document question answering
+- PDF and DOCX support
+- AI-generated summaries
+- Flashcards and quizzes
+- Shareable chat sessions
+
+## Product URL
+https://smartdocq.vercel.app/
+
+## Documentation
+https://smartdocq.vercel.app/help
+
+## Company
+SmartDocQ

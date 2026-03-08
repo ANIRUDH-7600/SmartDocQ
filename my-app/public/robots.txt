@@ -1,7 +1,18 @@
 # robots.txt for SmartDocQ
+
 # Allow all search engines to crawl the website
 User-agent: *
 Allow: /
+
+# Prevent indexing of internal app pages
+Disallow: /chat/
+Disallow: /upload/
+Disallow: /login/
+Disallow: /signup/
+Disallow: /share/
+
+# Block API routes
+Disallow: /api/
 
 # Provide sitemap location for better crawling
 Sitemap: https://smartdocq.vercel.app/sitemap.xml
