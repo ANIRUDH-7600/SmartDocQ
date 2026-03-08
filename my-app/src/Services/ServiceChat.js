@@ -4,10 +4,6 @@ function validateShareId(shareId) {
   if (!shareId) {
     throw new Error("Invalid share link");
   }
-
-  // Backward compatible:
-  // - legacy ids were 12 chars
-  // - new ids are 16–32+ chars (high entropy)
   if (!/^(?:[a-zA-Z0-9_-]{12}|[a-zA-Z0-9_-]{16,64})$/.test(shareId)) {
     throw new Error("Invalid share link");
   }
