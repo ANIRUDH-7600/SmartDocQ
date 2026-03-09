@@ -8,8 +8,8 @@
   font-weight: 700;
   border: none;
   border-radius: 50%;
-  width: clamp(44px, 8vw, 64px);
-  height: clamp(44px, 8vw, 64px);
+  width: clamp(42px, 7vw, 56px);
+  height: clamp(42px, 7vw, 56px);
   aspect-ratio: 1 / 1;
   cursor: pointer;
   opacity: 0;

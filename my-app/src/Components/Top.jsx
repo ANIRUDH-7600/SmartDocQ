@@ -42,12 +42,12 @@ export default function Top() {
       onClick={scrollToTop}
     >
       <svg
-        width="16"
-        height="16"
+        width="19"
+        height="19"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2.5"
+        strokeWidth="2.6"
         aria-hidden="true"
       >
         <polyline points="18 15 12 9 6 15" />
