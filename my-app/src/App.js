@@ -34,19 +34,17 @@ function App() {
           position: 'relative', 
           zIndex: 1,
           pointerEvents: revealStarted ? 'auto' : 'none',
-          height: revealStarted ? 'auto' : '100vh',
-          overflow: revealStarted ? 'visible' : 'hidden'
         }}>
-          <Main revealStarted={revealStarted} />
+          <Main />
         </div>
       </ToastProvider>
     </BrowserRouter>
   );
 }
 
-function Main({ revealStarted }) {
+function Main() {
   useEffect(() => {
-    if (revealStarted && !sessionStorage.getItem('smartdocqAlert')) {
+    if (!sessionStorage.getItem('smartdocqAlert')) {
       setTimeout(() => {
         window.alert(
           '⚠️ TEMPORARY SERVICE LIMITATION\n\n' +
@@ -59,7 +57,7 @@ function Main({ revealStarted }) {
         sessionStorage.setItem('smartdocqAlert', 'shown');
       }, 600);
     }
-  }, [revealStarted]);
+  }, []);
 
   return (
     <>
