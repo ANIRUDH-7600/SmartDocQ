@@ -20,10 +20,6 @@ import ClickSpark from "./Effects/ClickSpark";
 
 gsap.registerPlugin(ScrollTrigger);
 
-/* ============================================================================
- * FEATURE DATA
- * Static array defined outside component to prevent recreation on each render.
- * ============================================================================ */
 const FEATURES = [
   {
     title: "Drop. Upload. Done.",
@@ -72,11 +68,6 @@ const FEATURES = [
   }
 ];
 
-/* ============================================================================
- * FEATURE CARD COMPONENT
- * Renders individual feature with viewport-triggered Lottie animation.
- * Animation starts when card is ~10% visible in viewport.
- * ============================================================================ */
 const FeatureCard = ({ title, desc, anim }) => {
   const cardRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -116,19 +107,12 @@ const FeatureCard = ({ title, desc, anim }) => {
   );
 };
 
-/* ============================================================================
- * HERO SECTION COMPONENT
- * Landing page hero with GSAP horizontal scroll for features.
- * ============================================================================ */
 const HeroSection = () => {
   const sectionRef = useRef(null);
   const containerRef = useRef(null);
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [isMounted, setIsMounted] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(false);
-
-  useEffect(() => setIsMounted(true), []);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
@@ -140,47 +124,72 @@ const HeroSection = () => {
   }, []);
 
   useLayoutEffect(() => {
-    if (!isMounted || !sectionRef.current || !containerRef.current) return;
+    if (!sectionRef.current || !containerRef.current) return;
 
     const container = containerRef.current;
     const section = sectionRef.current;
 
-    const disableAnim =
-      reduceMotion ||
-      window.innerWidth <= 768 ||
-      container.scrollWidth <= section.clientWidth;
-    if (disableAnim) return;
+    let tween;
+    let resizeTimer;
 
-    const getDistance = () => Math.max(0, container.scrollWidth - section.clientWidth);
-    if (getDistance() === 0) return;
+    const init = () => {
+      ScrollTrigger.getAll().forEach(st => st.kill());
 
-    const tween = gsap.to(container, {
-      x: () => -getDistance() + "px",
-      ease: "none",
-      scrollTrigger: {
-        trigger: section,
-        start: "top top",
-        end: () => "+=" + getDistance(),
-        scrub: true,
-        pin: true,
-        anticipatePin: 1,
-        invalidateOnRefresh: true,
-      },
+      const disableAnim =
+        reduceMotion ||
+        window.innerWidth <= 768 ||
+        container.scrollWidth <= section.clientWidth;
+
+      if (disableAnim) return;
+
+      const getDistance = () =>
+        Math.max(0, container.scrollWidth - section.clientWidth);
+
+      if (getDistance() === 0) return;
+
+      tween = gsap.to(container, {
+        x: () => -getDistance() + "px",
+        ease: "none",
+        immediateRender: false,
+        scrollTrigger: {
+          trigger: section,
+          start: "top top",
+          end: () => "+=" + getDistance(),
+          scrub: 1,
+          pin: true,
+          anticipatePin: 1,
+          invalidateOnRefresh: true,
+        },
+      });
+
+      ScrollTrigger.refresh();
+    };
+
+    const onLoad = () => {
+      setTimeout(init, 100);
+    };
+
+    if (document.readyState === "complete") {
+      onLoad();
+    } else {
+      window.addEventListener("load", onLoad);
+    }
+
+    // ✅ Debounced ResizeObserver — prevents spamming during Lottie frames
+    const ro = new ResizeObserver(() => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => ScrollTrigger.refresh(), 100);
     });
-
-    const handleResize = () => ScrollTrigger.refresh();
-    window.addEventListener("resize", handleResize);
-
-    const ro = new ResizeObserver(() => ScrollTrigger.refresh());
     ro.observe(container);
 
     return () => {
-      tween.scrollTrigger?.kill();
-      tween.kill();
-      window.removeEventListener("resize", handleResize);
+      clearTimeout(resizeTimer);       // ✅ clear pending timer
+      tween?.scrollTrigger?.kill();
+      tween?.kill();
       ro.disconnect();
+      window.removeEventListener("load", onLoad);
     };
-  }, [isMounted, reduceMotion]);
+  }, [reduceMotion]);
 
   const handleGetStarted = () => {
     const user = localStorage.getItem("user");
@@ -226,6 +235,7 @@ const HeroSection = () => {
 
       <h2 id="feat" className="feature-title">Why SmartDocQ Stands Out</h2>
 
+      {/* ✅ use-title moved OUTSIDE features-section */}
       <section className="features-section" ref={sectionRef} aria-label="Product features">
         <div className="features-container" ref={containerRef} role="list">
           {FEATURES.map((f) => (
@@ -234,6 +244,7 @@ const HeroSection = () => {
         </div>
         <h2 className="use-title">From Chaos to Clarity</h2>
       </section>
+
     </ClickSpark>
   );
 };

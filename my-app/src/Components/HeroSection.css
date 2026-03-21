@@ -204,6 +204,7 @@
   flex-wrap: nowrap;
   user-select: none;
   -webkit-user-drag: none;
+  will-change: transform; 
 }
 
 .features-container {
@@ -221,7 +222,7 @@
   align-items: center;
   position: relative;
   margin-right: 20px;
-  
+  flex-shrink: 0;
 }
 
 .box .glass {
