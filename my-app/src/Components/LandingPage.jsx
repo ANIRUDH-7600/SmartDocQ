@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { gsap } from "gsap";
-import "./Landingpage.css";
+import "./LandingPage.css";
 
 class TextScramble {
   constructor(el) {
