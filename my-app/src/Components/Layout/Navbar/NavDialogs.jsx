@@ -19,7 +19,7 @@ export default function NavDialogs({ popup, user, onClose, onAuthSuccess, onUser
         >
           ✕
         </button>
-        <Login key={popup} onAuthSuccess={onAuthSuccess} initialMode={popup} />
+        <Login key={popup} onAuthSuccess={onAuthSuccess} initialMode={popup} onClose={onClose} />
       </div>
     </div>,
     body

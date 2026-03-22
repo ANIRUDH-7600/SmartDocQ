@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import { useAuthForm } from "./useAuthForm";
 import LoginForm from "./LoginForm";
 import SignupForm from "./SignupForm";
@@ -18,12 +18,48 @@ export default function Login({ onAuthSuccess = () => {}, initialMode = "login",
     getRef,
   } = useAuthForm({ onAuthSuccess, initialMode });
 
+  const sliderRef = useRef(null);
+  const loginBtnRef = useRef(null);
+  const signupBtnRef = useRef(null);
+
+  useEffect(() => {
+    const updateSlider = () => {
+      const btn = isLogin ? loginBtnRef.current : signupBtnRef.current;
+      const toggle = sliderRef.current?.parentElement;
+      if (!btn || !sliderRef.current || !toggle) return;
+
+      const toggleRect = toggle.getBoundingClientRect();
+      const btnRect = btn.getBoundingClientRect();
+
+      sliderRef.current.style.left = `${btnRect.left - toggleRect.left}px`;
+      sliderRef.current.style.width = `${btnRect.width}px`;
+    };
+
+    updateSlider();
+    window.addEventListener("resize", updateSlider);
+    return () => window.removeEventListener("resize", updateSlider);
+  }, [isLogin]);
+
   return (
     <div className="auth-container">
       <div className="form-toggle">
-        <button className={`toggle-btn ${isLogin ? "active" : ""}`} onClick={() => setIsLogin(true)}>Sign In</button>
-        <button className={`toggle-btn ${!isLogin ? "active" : ""}`} onClick={() => setIsLogin(false)}>Sign Up</button>
-        <div className={`toggle-slider ${isLogin ? "login" : "signup"}`} />
+        <button
+          ref={loginBtnRef}
+          className={`toggle-btn ${isLogin ? "active" : ""}`}
+          onClick={() => setIsLogin(true)}
+          type="button"
+        >
+          Sign In
+        </button>
+        <button
+          ref={signupBtnRef}
+          className={`toggle-btn ${!isLogin ? "active" : ""}`}
+          onClick={() => setIsLogin(false)}
+          type="button"
+        >
+          Sign Up
+        </button>
+        <div ref={sliderRef} className="toggle-slider" />
       </div>
 
       <div className={`form-wrapper ${isLogin ? "active" : ""}`}>
@@ -52,6 +88,7 @@ export default function Login({ onAuthSuccess = () => {}, initialMode = "login",
           handleSubmit={handleSubmit}
           togglePasswordVisibility={togglePasswordVisibility}
           handleGoogleSuccess={handleGoogleSuccess}
+          onClose={onClose}
         />
       </div>
     </div>

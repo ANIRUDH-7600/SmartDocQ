@@ -10,15 +10,17 @@
   color: #fff;
 }
 
-/* ── TOGGLE SWITCH (Premium Dark Mode) ── */
 .form-toggle {
   position: relative;
   display: flex;
-  background: #111; /* Dark track */
+  background: #111;
   border-radius: 12px;
   padding: 4px;
   gap: 4px;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto 20px auto;
 }
 
 .toggle-btn {
@@ -26,7 +28,7 @@
   padding: 10px 18px;
   border: none;
   background: transparent;
-  color: #6b7280; /* Muted inactive text */
+  color: #6b7280;
   font-weight: 500;
   font-size: 14px;
   cursor: pointer;
@@ -35,10 +37,13 @@
   position: relative;
   z-index: 2;
   letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .toggle-btn.active {
-  color: #000; /* Black text for high contrast on beige slider */
+  color: #000;
   font-weight: 600;
 }
 
@@ -46,17 +51,16 @@
   position: absolute;
   top: 4px;
   left: 4px;
-  width: calc(50% - 2px);
+  width: calc(50% - 6px); 
   height: calc(100% - 8px);
-  background: #f3ede0; /* Light beige slider to match navbar accent */
+  background: #f3ede0;
   border-radius: 9px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+              width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: left, width;
   z-index: 1;
-}
-
-.toggle-slider.signup {
-  transform: translateX(100%);
+  pointer-events: none;
 }
 
 /* ── FORM WRAPPERS ── */
@@ -121,7 +125,7 @@
   border-radius: 10px;
   font-size: 14px;
   transition: all 0.2s ease;
-  background: #050505; /* Deep black input */
+  background: #050505;
   color: #fff;
   font-family: inherit;
 }
@@ -137,7 +141,6 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
-/* Force dark theme even when browser autofill is applied (auth only) */
 .auth-container .input-group input:-webkit-autofill,
 .auth-container .input-group input:-webkit-autofill:hover,
 .auth-container .input-group input:-webkit-autofill:focus {
@@ -147,7 +150,6 @@
   caret-color: #ffffff !important;
 }
 
-/* Password Wrapper */
 .password-input-wrapper {
   position: relative;
   display: flex;
@@ -160,7 +162,6 @@
   caret-color: #fff;
 }
 
-/* Hide browser default icons */
 .password-input-wrapper input::-ms-reveal,
 .password-input-wrapper input::-ms-clear {
   display: none;
@@ -194,8 +195,6 @@
   grid-template-columns: 1fr 1fr;
   gap: 14px;
 }
-
-/* Error States */
 .input-group input.input-error {
   border-color: #ef4444;
   background: rgba(239, 68, 68, 0.05);
@@ -227,7 +226,7 @@
   color: #ffffff;
   padding: 14px 24px;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 100px; /* Premium pill */
+  border-radius: 100px;
   cursor: pointer;
   font-size: 15px;
   font-weight: 600;
@@ -238,11 +237,10 @@
   letter-spacing: 0.02em;
 }
 
-/* Remove old shimmer effect for cleaner look */
 .submit-btn::before { display: none; }
 
 .submit-btn:hover {
-  background: #f3ede0; /* Invert to light beige */
+  background: #f3ede0;
   color: #000000;
   border-color: #f3ede0;
   transform: translateY(-1px);
@@ -256,6 +254,49 @@
 .submit-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.email-toggle-btn {
+  margin-top: 8px;
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.email-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.auth-legal-text {
+  margin-top: 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.5;
+  text-align: center;
+  width: 100%;
+}
+
+.auth-legal-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: #f3ede0;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.auth-legal-link:hover {
+  color: #ffffff;
 }
 
 /* ── DIVIDER & GOOGLE ── */
@@ -287,8 +328,6 @@
   justify-content: center;
   margin-top: 4px;
 }
-
-/* Ensure Google button fits theme */
 .google-btn-wrapper > div {
   width: 100% !important;
   display: flex !important;
@@ -298,9 +337,9 @@
 .google-btn-wrapper button {
   width: 100% !important;
   justify-content: center !important;
-  border-radius: 100px !important; /* Match pill shape */
+  border-radius: 100px !important; 
   height: 46px !important;
-  border: 1px solid rgba(255,255,255,0.1) !important; /* Add border to blend in */
+  border: 1px solid rgba(255,255,255,0.1) !important; 
   font-family: 'DM Sans', sans-serif !important;
 }
 
@@ -348,11 +387,7 @@
   transition: width 0.3s ease, background-color 0.3s ease;
   position: relative;
 }
-
-/* Remove shimmer for cleaner dark look */
 .strength-bar::after { display: none; }
-
-/* Dark Mode Strength Colors */
 .strength-bar[data-strength="weak"] {
   background: #ef4444;
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
