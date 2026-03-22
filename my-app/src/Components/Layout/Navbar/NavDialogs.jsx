@@ -1,6 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
-import Login from "../../Login";
+import Login from "../../Auth/Login";
 import Contact from "../../Contact";
 import Account from "../../Account";
 
@@ -10,13 +10,13 @@ export default function NavDialogs({ popup, user, onClose, onAuthSuccess, onUser
 
   if (popup === "login" || popup === "signup") return createPortal(
     <div className="overlay" onClick={onClose} role="presentation">
-      <div className="popup" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+      <div className="popup login-popup" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <button
-          className="close-btn"
+          className="auth-popup-close"
           onClick={onClose}
-          aria-label={popup === "signup" ? "Close signup dialog" : "Close login dialog"}
+          aria-label="Close authentication dialog"
           type="button"
-          autoFocus>
+        >
           ✕
         </button>
         <Login key={popup} onAuthSuccess={onAuthSuccess} initialMode={popup} />

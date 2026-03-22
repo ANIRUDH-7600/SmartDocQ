@@ -160,8 +160,8 @@
     75% { transform: translateX(4px); }
   }
   
-  /* Submit Button */
-  .submit-btn {
+  /* Submit Button (scoped to contact form only) */
+  .contact-form .submit-btn {
     background: linear-gradient(135deg, #a855f7, #7c3aed);
     color: white;
     padding: 14px 28px;
@@ -180,13 +180,13 @@
     gap: 8px;
   }
   
-  .submit-btn:hover:not(:disabled) {
+  .contact-form .submit-btn:hover:not(:disabled) {
     background: linear-gradient(135deg, #9333ea, #6d28d9);
   }
   
 
   
-  .submit-btn:disabled {
+  .contact-form .submit-btn:disabled {
     opacity: 0.7;
     cursor: not-allowed;
     transform: none;
@@ -301,7 +301,7 @@
   }
 
   /* Improve focus visibility */
-  .submit-btn:focus-visible,
+  .contact-form .submit-btn:focus-visible,
   .input-group input:focus-visible,
   .input-group textarea:focus-visible,
   .input-group select:focus-visible {

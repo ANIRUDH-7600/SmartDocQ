@@ -1,0 +1,410 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+.auth-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  position: relative;
+  font-family: 'DM Sans', sans-serif;
+  color: #fff;
+}
+
+/* ── TOGGLE SWITCH (Premium Dark Mode) ── */
+.form-toggle {
+  position: relative;
+  display: flex;
+  background: #111; /* Dark track */
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.toggle-btn {
+  flex: 1;
+  padding: 10px 18px;
+  border: none;
+  background: transparent;
+  color: #6b7280; /* Muted inactive text */
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 9px;
+  transition: color 0.3s ease;
+  position: relative;
+  z-index: 2;
+  letter-spacing: 0.02em;
+}
+
+.toggle-btn.active {
+  color: #000; /* Black text for high contrast on beige slider */
+  font-weight: 600;
+}
+
+.toggle-slider {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 2px);
+  height: calc(100% - 8px);
+  background: #f3ede0; /* Light beige slider to match navbar accent */
+  border-radius: 9px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1;
+}
+
+.toggle-slider.signup {
+  transform: translateX(100%);
+}
+
+/* ── FORM WRAPPERS ── */
+.form-wrapper {
+  opacity: 0;
+  transform: translateX(20px);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+}
+
+.form-wrapper.active {
+  opacity: 1;
+  transform: translateX(0);
+  position: relative;
+  pointer-events: all;
+}
+
+.form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #ffffff;
+  text-align: center;
+  letter-spacing: -0.02em;
+}
+
+.form-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: center;
+  font-weight: 400;
+}
+
+/* ── INPUTS ── */
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+  margin-left: 2px;
+}
+
+.input-group input {
+  padding: 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  background: #050505; /* Deep black input */
+  color: #fff;
+  font-family: inherit;
+}
+
+.input-group input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.85);
+  background: #0a0a0a;
+}
+
+/* Password Wrapper */
+.password-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrapper input {
+  width: 100%;
+  padding-right: 45px !important;
+  caret-color: #fff;
+}
+
+/* Hide browser default icons */
+.password-input-wrapper input::-ms-reveal,
+.password-input-wrapper input::-ms-clear {
+  display: none;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 3px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  line-height: 1;
+  height: 36px;
+  z-index: 10;
+  color: rgba(255, 255, 255, 0.45);
+  transition: color 0.2s;
+}
+
+.password-toggle-btn:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.password-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+/* Error States */
+.input-group input.input-error {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.error-message {
+  font-size: 12px;
+  color: #ef4444;
+  margin-top: 2px;
+  margin-left: 2px;
+  animation: errorShake 0.3s ease-in-out;
+}
+
+@keyframes errorShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* ── BUTTONS ── */
+.auth-submit-wrapper {
+  margin-top: 8px;
+  display: block;
+  width: 100%;
+}
+
+.submit-btn {
+  background: rgba(255, 255, 255, 0.05);
+  color: #ffffff;
+  padding: 14px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 100px; /* Premium pill */
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  letter-spacing: 0.02em;
+}
+
+/* Remove old shimmer effect for cleaner look */
+.submit-btn::before { display: none; }
+
+.submit-btn:hover {
+  background: #f3ede0; /* Invert to light beige */
+  color: #000000;
+  border-color: #f3ede0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(243, 237, 224, 0.18);
+}
+
+.submit-btn:active {
+  transform: scale(0.98);
+}
+
+.submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── DIVIDER & GOOGLE ── */
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.divider span {
+  padding: 0 12px;
+}
+
+.google-btn-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+/* Ensure Google button fits theme */
+.google-btn-wrapper > div {
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+}
+
+.google-btn-wrapper button {
+  width: 100% !important;
+  justify-content: center !important;
+  border-radius: 100px !important; /* Match pill shape */
+  height: 46px !important;
+  border: 1px solid rgba(255,255,255,0.1) !important; /* Add border to blend in */
+  font-family: 'DM Sans', sans-serif !important;
+}
+
+/* ── PASSWORD STRENGTH METER (Dark Mode) ── */
+.password-strength-container {
+  margin-top: 12px;
+  padding: 14px;
+  background: #0a0a0a;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.strength-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.strength-label {
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.strength-percentage {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+}
+
+.strength-bar-wrapper {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.strength-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+  position: relative;
+}
+
+/* Remove shimmer for cleaner dark look */
+.strength-bar::after { display: none; }
+
+/* Dark Mode Strength Colors */
+.strength-bar[data-strength="weak"] {
+  background: #ef4444;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+}
+
+.strength-bar[data-strength="medium"] {
+  background: #f59e0b;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.strength-bar[data-strength="strong"] {
+  background: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+}
+
+.requirements-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.requirement {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  padding: 6px 0;
+  transition: all 0.2s ease;
+}
+
+.requirement.met {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.check-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  font-size: 9px;
+  font-weight: bold;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.4);
+  background: transparent;
+  transition: all 0.2s ease;
+}
+
+.requirement.met .check-icon {
+  color: #000;
+  background: #10b981;
+  border-color: #10b981;
+  animation: checkPop 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .password-row { grid-template-columns: 1fr; gap: 16px; }
+}
+
+@media (max-width: 480px) {
+  .requirements-grid { grid-template-columns: 1fr; }
+  .form-title { font-size: 22px; }
+}
