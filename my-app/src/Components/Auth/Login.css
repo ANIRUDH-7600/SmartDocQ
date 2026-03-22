@@ -134,6 +134,17 @@
   outline: none;
   border-color: rgba(255, 255, 255, 0.85);
   background: #0a0a0a;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+/* Force dark theme even when browser autofill is applied */
+.input-group input:-webkit-autofill,
+.input-group input:-webkit-autofill:hover,
+.input-group input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #050505 inset;
+  box-shadow: 0 0 0 1000px #050505 inset;
+  -webkit-text-fill-color: #ffffff;
+  caret-color: #ffffff;
 }
 
 /* Password Wrapper */
