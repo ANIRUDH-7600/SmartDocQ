@@ -137,14 +137,14 @@
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
-/* Force dark theme even when browser autofill is applied */
-.input-group input:-webkit-autofill,
-.input-group input:-webkit-autofill:hover,
-.input-group input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px #050505 inset;
-  box-shadow: 0 0 0 1000px #050505 inset;
-  -webkit-text-fill-color: #ffffff;
-  caret-color: #ffffff;
+/* Force dark theme even when browser autofill is applied (auth only) */
+.auth-container .input-group input:-webkit-autofill,
+.auth-container .input-group input:-webkit-autofill:hover,
+.auth-container .input-group input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #050505 inset !important;
+  box-shadow: 0 0 0 1000px #050505 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
 }
 
 /* Password Wrapper */

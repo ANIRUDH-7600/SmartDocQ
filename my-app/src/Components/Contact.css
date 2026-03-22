@@ -77,21 +77,21 @@
     .form-row { grid-template-columns: 1fr 1fr; }
   }
   
-  .input-group {
+  .contact-form .input-group {
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
   
-  .input-group label {
+  .contact-form .input-group label {
     font-size: 14px;
     font-weight: 500;
     color: #374151;
   }
   
-  .input-group input,
-  .input-group textarea,
-  .input-group select {
+  .contact-form .input-group input,
+  .contact-form .input-group textarea,
+  .contact-form .input-group select {
     padding: 12px 16px;
     border: 1px solid #d1d5db;
     border-radius: 8px;
@@ -103,28 +103,28 @@
     box-sizing: border-box;
   }
   
-  .input-group textarea {
+  .contact-form .input-group textarea {
     resize: vertical;
     min-height: 100px;
   }
   
-  .input-group input:focus,
-  .input-group textarea:focus,
-  .input-group select:focus {
+  .contact-form .input-group input:focus,
+  .contact-form .input-group textarea:focus,
+  .contact-form .input-group select:focus {
     outline: none;
     border-color: #a855f7;
     box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.12);
   }
   
-  .input-group input.input-error,
-  .input-group textarea.input-error,
-  .input-group select.input-error {
+  .contact-form .input-group input.input-error,
+  .contact-form .input-group textarea.input-error,
+  .contact-form .input-group select.input-error {
     border-color: #ef4444;
     box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
   }
 
   /* Select specifics */
-  .input-group select {
+  .contact-form .input-group select {
     /* Use native arrow to avoid repaint/flicker issues on some browsers */
     appearance: auto;
     -webkit-appearance: auto;
@@ -133,7 +133,7 @@
   }
 
   /* Hover state for select */
-  .input-group select:hover {
+  .contact-form .input-group select:hover {
     border-color: #b794f4; /* subtle purple */
   }
 
@@ -300,11 +300,11 @@
     }
   }
 
-  /* Improve focus visibility */
+  /* Improve focus visibility (scoped to contact form only) */
   .contact-form .submit-btn:focus-visible,
-  .input-group input:focus-visible,
-  .input-group textarea:focus-visible,
-  .input-group select:focus-visible {
+  .contact-form .input-group input:focus-visible,
+  .contact-form .input-group textarea:focus-visible,
+  .contact-form .input-group select:focus-visible {
     outline: 2px solid rgba(168, 85, 247, 0.6);
     outline-offset: 2px;
   }
