@@ -1,8 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap');
 
-#navbar {
-  opacity: 0;
-}
 .navbar {
   width:100%;
   padding: 15px 40px;
@@ -119,55 +116,45 @@
     margin: 0 2px;
 }
 
-
-.login .login-cta {
-  background: transparent;
-  color: #a89d8a;
-  font-family: inherit;
-  font-weight: 700;
-  font-size: 0.97rem;
-  padding: 12px 28px;
-  border: none;
-  border-radius: 50px;
-  position: relative;
+/* Uiverse-style user login button (smaller, green border, beige text) */
+.user-profile {
+  width: 115px;
+  height: 44px;
+  border-radius: 999px;
   cursor: pointer;
-  transition: color 0.2s;
+  transition: 0.25s ease;
+  background: radial-gradient(circle at top left, rgba(46, 142, 255, 0.3), transparent 55%);
+  border: 2px solid rgba(74, 222, 128, 0.85); /* slightly thicker light green border */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.login .login-cta::before,
-.login .login-cta::after {
-  content: '';
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-radius: 4px;
-  transition: width 0.3s, height 0.3s, border-radius 0.3s;
+.user-profile:hover,
+.user-profile:focus-visible {
+  background-color: rgba(46, 142, 255, 0.15);
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.45);
+  outline: none;
 }
 
-.login .login-cta::before {
-  top: 0;
-  left: 0;
-  border-top: 1.7px solid #4ade80;
-  border-left: 1.7px solid #4ade80;
-  border-top-left-radius: 50px;
+.user-profile-inner {
+  width: 109px;
+  height: 40px;
+  border-radius: 999px;
+  background-color: #111111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #d4c9b8; /* light beige font color */
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
-.login .login-cta::after {
-  bottom: 0;
-  right: 0;
-  border-bottom: 1.7px solid #4ade80;
-  border-right: 1.7px solid #4ade80;
-  border-bottom-right-radius: 50px;
-}
-
-.login .login-cta:hover::before,
-.login .login-cta:hover::after {
-  width: 80%;
-  height: 80%;
-}
-
-.login .login-cta:hover {
-  color: #bba682;
+.user-profile-inner svg {
+  width: 22px;
+  height: 22px;
+  fill: #d4c9b8;
 }
 
 .overlay {

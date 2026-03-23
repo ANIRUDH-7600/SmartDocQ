@@ -34,9 +34,6 @@ const validateForm = (type, loginData, signupData) => {
   else if (/\s/.test(data.password)) newErrors.password = "Password cannot contain spaces";
 
   if (type === "signup") {
-    if (!data.username.trim()) newErrors.username = "Username is required";
-    else if (!/^[a-zA-Z0-9 _\-@#$]{3,15}$/.test(data.username))
-      newErrors.username = "Username must be 3–15 characters; letters, numbers, spaces, _, -, @, #, $ allowed";
     if (!data.confirmPassword.trim()) newErrors.confirmPassword = "Please confirm your password";
     else if (data.password !== data.confirmPassword) newErrors.confirmPassword = "Passwords do not match";
   }
@@ -108,7 +105,7 @@ export function useAuthForm({ onAuthSuccess, initialMode }) {
 
     const payload = type === "login"
       ? loginData
-      : { name: signupData.username, email: signupData.email, password: signupData.password };
+        : { name: (signupData.username || "User").trim() || "User", email: signupData.email, password: signupData.password };
 
     const url = type === "login" ? apiUrl("/api/auth/login") : apiUrl("/api/auth/signup");
 
@@ -171,6 +168,29 @@ export function useAuthForm({ onAuthSuccess, initialMode }) {
     }
   };
 
+  const resetForms = useCallback(() => {
+    setLoginData({ email: "", password: "" });
+      setSignupData({ email: "", username: "User", password: "", confirmPassword: "" });
+    setErrors({});
+    setPasswordStrength({ score: 0, label: "", requirements: {} });
+    setShowPassword({ login: false, signup: false, confirm: false });
+  }, []);
+
+  const switchMode = useCallback((mode) => {
+    if (mode === "login") {
+      setIsLogin(true);
+      setLoginData({ email: "", password: "" });
+      setErrors({});
+      setShowPassword(prev => ({ ...prev, login: false }));
+    } else {
+      setIsLogin(false);
+        setSignupData({ email: "", username: "User", password: "", confirmPassword: "" });
+      setErrors({});
+      setPasswordStrength({ score: 0, label: "", requirements: {} });
+      setShowPassword(prev => ({ ...prev, signup: false, confirm: false }));
+    }
+  }, []);
+
   return {
     isLogin, setIsLogin,
     loginData, signupData,
@@ -181,6 +201,8 @@ export function useAuthForm({ onAuthSuccess, initialMode }) {
     handleSubmit,
     handleGoogleSuccess,
     togglePasswordVisibility,
+    resetForms,
+    switchMode,
     getRef,
   };
 }

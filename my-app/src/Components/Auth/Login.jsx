@@ -6,7 +6,7 @@ import "./Login.css";
 
 export default function Login({ onAuthSuccess = () => {}, initialMode = "login", onClose = () => {} }) {
   const {
-    isLogin, setIsLogin,
+    isLogin, switchMode,
     loginData, signupData,
     errors, loading,
     passwordStrength,
@@ -46,7 +46,7 @@ export default function Login({ onAuthSuccess = () => {}, initialMode = "login",
         <button
           ref={loginBtnRef}
           className={`toggle-btn ${isLogin ? "active" : ""}`}
-          onClick={() => setIsLogin(true)}
+          onClick={() => switchMode("login")}
           type="button"
         >
           Sign In
@@ -54,7 +54,7 @@ export default function Login({ onAuthSuccess = () => {}, initialMode = "login",
         <button
           ref={signupBtnRef}
           className={`toggle-btn ${!isLogin ? "active" : ""}`}
-          onClick={() => setIsLogin(false)}
+          onClick={() => switchMode("signup")}
           type="button"
         >
           Sign Up

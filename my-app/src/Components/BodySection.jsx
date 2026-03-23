@@ -220,7 +220,7 @@ function BodySection() {
       <h2 id="howto-heading" className="work-title">3 Steps. Zero Friction.</h2>
 
       <section className="how-to-use" aria-labelledby="howto-heading">
-        <div className="container">
+        <div className="howto-container">
           <VideoSection />
           <StepsSection />
         </div>

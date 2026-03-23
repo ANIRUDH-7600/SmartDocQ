@@ -70,7 +70,10 @@ export default function LoginForm({
 
         <div className="divider"><span>or continue with</span></div>
 
-        <div className="google-btn-wrapper">
+        <div
+          className={`google-btn-wrapper ${loading ? "google-disabled" : ""}`}
+          aria-disabled={loading}
+        >
           <GoogleLogin
             onSuccess={handleGoogleSuccess}
             onError={handleGoogleError}

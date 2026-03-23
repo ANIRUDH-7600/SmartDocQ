@@ -45,7 +45,10 @@ export default function SignupForm({
       <form onSubmit={handleSignupSubmit}>
         {isMobile && !showEmailForm && (
           <>
-            <div className="google-btn-wrapper">
+            <div
+              className={`google-btn-wrapper ${loading ? "google-disabled" : ""}`}
+              aria-disabled={loading}
+            >
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={() => showToast("Google Sign-In Failed", { type: "error" })}
@@ -68,22 +71,6 @@ export default function SignupForm({
 
         {(!isMobile || showEmailForm) && (
           <>
-            {!isMobile && (
-              <div className="input-group">
-                <label htmlFor="signup-username">Username</label>
-                <input
-                  id="signup-username"
-                  ref={getRef("username")}
-                  type="text" name="username" placeholder="choose a username"
-                  value={signupData.username}
-                  onChange={handleSignupChange}
-                  className={errors.username ? "input-error" : ""}
-                  autoComplete="username"
-                />
-                {errors.username && <span className="error-message">{errors.username}</span>}
-              </div>
-            )}
-
             <div className="input-group" style={{ marginTop: !isMobile ? "12px" : "16px" }}>
               <label htmlFor="signup-email">Email</label>
               <input
@@ -158,7 +145,10 @@ export default function SignupForm({
           <>
             <div className="divider"><span>or continue with</span></div>
 
-            <div className="google-btn-wrapper">
+            <div
+              className={`google-btn-wrapper ${loading ? "google-disabled" : ""}`}
+              aria-disabled={loading}
+            >
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={() => showToast("Google Sign-In Failed", { type: "error" })}

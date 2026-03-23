@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
 
-.auth-container {
+.container {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -343,6 +343,12 @@
   font-family: 'DM Sans', sans-serif !important;
 }
 
+.google-btn-wrapper.google-disabled {
+  pointer-events: none;
+  opacity: 0.5;
+  filter: grayscale(0.2);
+}
+
 /* ── PASSWORD STRENGTH METER (Dark Mode) ── */
 .password-strength-container {
   margin-top: 12px;
@@ -451,6 +457,5 @@
 }
 
 @media (max-width: 480px) {
-  .requirements-grid { grid-template-columns: 1fr; }
   .form-title { font-size: 22px; }
 }
