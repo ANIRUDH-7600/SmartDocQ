@@ -4,38 +4,14 @@ const User = require("../models/User");
 const Document = require("../models/Document");
 const Chat = require("../models/Chat");
 const ContactReport = require("../models/ContactReport");
-const { verifyToken } = require("./auth");
+const { verifyToken, isAdmin } = require("./auth");
+const { validate } = require("../middlewares/validate");
+const { sendError } = require("../middlewares/apiResponse");
+const { idParamSchema } = require("../validators/adminSchemas");
 const fetch = require("node-fetch");
 const mongoose = require("mongoose");
 const cloudinary = require('cloudinary').v2;
 const logger = require("../lib/logger");
-
-// Middleware to check if user is admin
-const isAdmin = async (req, res, next) => {
-  try {
-    // Check for special admin token
-    if (req.userId === "admin_special") {
-      req.adminUser = {
-        _id: "admin_special",
-        name: "System Administrator",
-        email: "admin123@gmail.com",
-        isAdmin: true,
-        role: "admin"
-      };
-      return next();
-    }
-
-    // Regular user admin check
-    const user = await User.findById(req.userId);
-    if (!user || !user.isAdmin) {
-      return res.status(403).json({ message: "Admin access required" });
-    }
-    req.adminUser = user;
-    next();
-  } catch (error) {
-    return res.status(500).json({ message: "Error checking admin status" });
-  }
-};
 
 // Dashboard overview
 router.get("/dashboard", verifyToken, isAdmin, async (req, res) => {
@@ -379,7 +355,7 @@ router.get("/dashboard", verifyToken, isAdmin, async (req, res) => {
     res.json({ stats });
   } catch (error) {
     logger.error({ err: error }, "Admin dashboard error");
-    res.status(500).json({ message: "Failed to load dashboard data" });
+    return sendError(res, 500, "Failed to load dashboard data");
   }
 });
 
@@ -472,7 +448,7 @@ router.get("/users", verifyToken, isAdmin, async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, "Get users error");
-    res.status(500).json({ message: "Failed to fetch users" });
+    return sendError(res, 500, "Failed to fetch users");
   }
 });
 
@@ -516,23 +492,23 @@ router.get("/documents", verifyToken, isAdmin, async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, "Get documents error");
-    res.status(500).json({ message: "Failed to fetch documents" });
+    return sendError(res, 500, "Failed to fetch documents");
   }
 });
 
 // Delete user (admin only)
-router.delete("/users/:id", verifyToken, isAdmin, async (req, res) => {
+router.delete("/users/:id", verifyToken, isAdmin, validate(idParamSchema), async (req, res) => {
   try {
-    const userId = req.params.id;
+    const userId = req.validated.params.id;
     
     // Don't allow admin to delete themselves
     if (userId === req.userId) {
-      return res.status(400).json({ message: "Cannot delete your own account" });
+      return sendError(res, 400, "Cannot delete your own account");
     }
 
     // Find user first to attempt avatar cleanup
     const user = await User.findById(userId).select("avatar");
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return sendError(res, 404, "User not found");
 
     // Cascade delete user's data
     const [docsRes, chatsRes, contactsRes, userRes] = await Promise.allSettled([
@@ -563,14 +539,14 @@ router.delete("/users/:id", verifyToken, isAdmin, async (req, res) => {
     res.json({ message: "User and associated data deleted successfully", deleted });
   } catch (error) {
     logger.error({ err: error }, "Delete user error");
-    res.status(500).json({ message: "Failed to delete user" });
+    return sendError(res, 500, "Failed to delete user");
   }
 });
 
 // Delete document (admin only)
-router.delete("/documents/:id", verifyToken, isAdmin, async (req, res) => {
+router.delete("/documents/:id", verifyToken, isAdmin, validate(idParamSchema), async (req, res) => {
   try {
-    const documentId = req.params.id;
+    const documentId = req.validated.params.id;
     
     // Delete associated chats
     await Chat.deleteMany({ document: documentId });
@@ -581,23 +557,23 @@ router.delete("/documents/:id", verifyToken, isAdmin, async (req, res) => {
     res.json({ message: "Document and associated chats deleted successfully" });
   } catch (error) {
     logger.error({ err: error }, "Delete document error");
-    res.status(500).json({ message: "Failed to delete document" });
+    return sendError(res, 500, "Failed to delete document");
   }
 });
 
 // Toggle user status (activate/deactivate)
-router.patch("/users/:id/toggle-status", verifyToken, isAdmin, async (req, res) => {
+router.patch("/users/:id/toggle-status", verifyToken, isAdmin, validate(idParamSchema), async (req, res) => {
   try {
-    const userId = req.params.id;
+    const userId = req.validated.params.id;
     
     // Don't allow admin to deactivate themselves
     if (userId === req.userId) {
-      return res.status(400).json({ message: "Cannot modify your own account status" });
+      return sendError(res, 400, "Cannot modify your own account status");
     }
     
     const user = await User.findById(userId).select("-password");
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return sendError(res, 404, "User not found");
     }
     
     user.isActive = !user.isActive;
@@ -609,7 +585,7 @@ router.patch("/users/:id/toggle-status", verifyToken, isAdmin, async (req, res) 
     });
   } catch (error) {
     logger.error({ err: error }, "Toggle user status error");
-    res.status(500).json({ message: "Failed to update user status" });
+    return sendError(res, 500, "Failed to update user status");
   }
 });
 
@@ -657,7 +633,7 @@ router.get("/logs", verifyToken, isAdmin, async (req, res) => {
     });
   } catch (error) {
     logger.error({ err: error }, "Get logs error");
-    res.status(500).json({ message: "Failed to fetch logs" });
+    return sendError(res, 500, "Failed to fetch logs");
   }
 });
 
@@ -708,38 +684,38 @@ router.get("/contact-reports", verifyToken, isAdmin, async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, "List contact-reports error");
-    res.status(500).json({ message: "Failed to load contact reports" });
+    return sendError(res, 500, "Failed to load contact reports");
   }
 });
 
-router.patch("/contact-reports/:id", verifyToken, isAdmin, async (req, res) => {
+router.patch("/contact-reports/:id", verifyToken, isAdmin, validate(idParamSchema), async (req, res) => {
   try {
     const { status } = req.body || {};
     if (!status || !["open", "in_progress", "resolved"].includes(status)) {
-      return res.status(400).json({ message: "Invalid status" });
+      return sendError(res, 400, "Invalid status");
     }
     const updated = await ContactReport.findByIdAndUpdate(
       req.params.id,
       { $set: { status } },
       { new: true }
     );
-    if (!updated) return res.status(404).json({ message: "Contact report not found" });
+    if (!updated) return sendError(res, 404, "Contact report not found");
     res.json({ item: updated });
   } catch (err) {
     logger.error({ err }, "Update contact-report error");
-    res.status(500).json({ message: "Failed to update contact report" });
+    return sendError(res, 500, "Failed to update contact report");
   }
 });
 
 // Delete a contact report
-router.delete("/contact-reports/:id", verifyToken, isAdmin, async (req, res) => {
+router.delete("/contact-reports/:id", verifyToken, isAdmin, validate(idParamSchema), async (req, res) => {
   try {
-    const result = await ContactReport.findByIdAndDelete(req.params.id);
-    if (!result) return res.status(404).json({ message: "Contact report not found" });
+    const result = await ContactReport.findByIdAndDelete(req.validated.params.id);
+    if (!result) return sendError(res, 404, "Contact report not found");
     res.json({ message: "Contact report deleted" });
   } catch (err) {
     logger.error({ err }, "Delete contact-report error");
-    res.status(500).json({ message: "Failed to delete contact report" });
+    return sendError(res, 500, "Failed to delete contact report");
   }
 });
 
@@ -781,7 +757,7 @@ router.get("/contact-reports/analytics/summary", verifyToken, isAdmin, async (re
     res.json({ total, resolved, new: newCount, unread, byCategory });
   } catch (err) {
     logger.error({ err }, "Reports summary error");
-    res.status(500).json({ message: "Failed to load summary" });
+    return sendError(res, 500, "Failed to load summary");
   }
 });
 
@@ -802,6 +778,6 @@ router.get("/contact-reports/analytics/timeseries", verifyToken, isAdmin, async 
     res.json({ series });
   } catch (err) {
     logger.error({ err }, "Reports timeseries error");
-    res.status(500).json({ message: "Failed to load time series" });
+    return sendError(res, 500, "Failed to load time series");
   }
 });
