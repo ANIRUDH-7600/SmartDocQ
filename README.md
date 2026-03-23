@@ -93,7 +93,7 @@ git clone https://github.com/your-username/SmartDocQ.git
 cd SmartDocQ
 ```
 
-### 2. Backend Middleware Setup
+### 2. Backend Middleware Setup (Node API)
 
 ```bash
 # Navigate to servers directory
@@ -103,17 +103,20 @@ cd servers
 npm install
 
 # Create .env file with the following variables:
-# MONGODB_URI=your_mongodb_connection_string
+# PORT=5000
+# MONGO_URI=your_mongodb_connection_string
 # JWT_SECRET=your_jwt_secret_key
-# FLASK_SERVICE_URL=http://localhost:5000
-# FLASK_SERVICE_TOKEN=your_service_token
-# PORT=4000
+# FRONTEND_ORIGINS=http://localhost:3000
+# SERVICE_TOKEN=your_service_token
+# FLASK_ASK_URL=http://localhost:5001/api/document/ask
+# FLASK_INDEX_URL=http://localhost:5001/api/index-from-atlas
+# FLASK_CONVERT_URL=http://localhost:5001/api/convert/word-to-pdf
 
-# Start the server
+# Start the server (Node API on http://localhost:5000)
 npm start
 ```
 
-### 3. AI Service Setup
+### 3. AI Service Setup (Flask)
 
 ```bash
 # Navigate to backend directory
@@ -127,15 +130,17 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Create .env file with:
-# GEMINI_API_KEY=your_google_ai_api_key
+# PORT=5001
+# FRONTEND_ORIGINS=http://localhost:3000
+# NODE_BASE_URL=http://localhost:5000
 # SERVICE_TOKEN=your_service_token
-# MONGODB_URI=your_mongodb_connection_string
+# GEMINI_API_KEY=your_google_ai_api_key
 
 # Start Flask service
 python main.py
 ```
 
-### 4. Frontend Setup
+### 4. Frontend Setup (React)
 
 ```bash
 # Navigate to my-app directory
@@ -145,7 +150,9 @@ cd ../my-app
 npm install
 
 # Create .env file with:
-# REACT_APP_API_URL=http://localhost:4000
+# REACT_APP_API_URL=http://localhost:5000
+# REACT_APP_PY_API_URL=http://localhost:5001
+# REACT_APP_GOOGLE_CLIENT_ID=your_google_oauth_client_id
 
 # Start development server
 npm start
@@ -160,8 +167,8 @@ http://localhost:3000
 
 The application will be running with:
 - Frontend: `http://localhost:3000`
-- Backend API: `http://localhost:4000`
-- Flask AI Service: `http://localhost:5000`
+- Backend API (Node): `http://localhost:5000`
+- Flask AI Service: `http://localhost:5001`
 
 ## Usage Guide
 
@@ -176,20 +183,28 @@ The application will be running with:
 
 ## API Documentation
 
-### Authentication Endpoints
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-- `GET /api/auth/me` - Get current user profile
+### Authentication Endpoints (Node API)
+- `POST /api/auth/signup` - User registration
+- `POST /api/auth/login` - User login (sets httpOnly cookie)
+- `POST /api/auth/logout` - Logout (clears cookie)
+- `GET /api/auth/verify` - Verify session from cookie
 
-### Document Endpoints
-- `POST /api/documents/upload` - Upload document
-- `GET /api/documents` - List user documents
-- `DELETE /api/documents/:id` - Delete document
+### Document Endpoints (Node API)
+- `POST /api/document/upload` - Upload single document
+- `POST /api/document/upload/batch` - Upload multiple documents (up to 10)
+- `GET /api/document/my` - List user documents (metadata)
+- `GET /api/document/:id/download` - Download original/converted file
+- `DELETE /api/document/:id` - Delete document
 
-### Chat Endpoints
-- `POST /api/chat/message` - Send message and get AI response
-- `GET /api/chat/history/:documentId` - Retrieve chat history
-- `POST /api/chat/rate` - Rate AI response quality
+### Chat Endpoints (Node + Flask)
+- `GET /api/chat/:documentId` - Get or create chat for a document
+- `POST /api/chat/:documentId/message` - Send message and get AI answer (via Flask)
+- `POST /api/chat/:documentId/append` - Append precomputed messages
+- `PUT /api/chat/:documentId` - Overwrite entire chat
+- `DELETE /api/chat/:documentId` - Delete chat for a document
+- `DELETE /api/chat` - Delete all chats for current user
+- `PATCH /api/chat/:documentId/message/:index/rating` - Rate an assistant message
+- `GET /api/chat/:documentId/export.pdf` - Export chat as PDF
 
 ### Admin Endpoints
 - `GET /api/admin/users` - List all users
