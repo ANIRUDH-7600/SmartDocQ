@@ -25,7 +25,7 @@ export default function LoginForm({
       <h2 className="form-title">Welcome back</h2>
       <p className="form-subtitle">sign in to continue →</p>
 
-      <form onSubmit={handleLoginSubmit}>
+      <form onSubmit={handleLoginSubmit} autoComplete="off">
         <div className="input-group">
           <label htmlFor="login-email">Email</label>
           <input
@@ -35,7 +35,7 @@ export default function LoginForm({
             value={loginData.email}
             onChange={handleLoginChange}
             className={errors.email ? "input-error" : ""}
-            autoComplete="email"
+            autoComplete="off"
           />
           {errors.email && <span className="error-message">{errors.email}</span>}
         </div>
@@ -51,7 +51,7 @@ export default function LoginForm({
               value={loginData.password}
               onChange={handleLoginChange}
               className={errors.password ? "input-error" : ""}
-              autoComplete="current-password"
+              autoComplete="off"
             />
             <button type="button" className="password-toggle-btn"
               onClick={toggleLogin}

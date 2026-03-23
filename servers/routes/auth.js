@@ -12,6 +12,9 @@ const Document = require("../models/Document");
 const ContactReport = require("../models/ContactReport");
 const { OAuth2Client } = require('google-auth-library');
 const logger = require("../lib/logger");
+const { validate } = require("../middlewares/validate");
+const { sendError, sendSuccess } = require("../middlewares/apiResponse");
+const { signupSchema, loginSchema, updateMeSchema, googleSchema } = require("../validators/authSchemas");
 
 // Cookie configuration for httpOnly auth
 const isProduction = process.env.NODE_ENV === "production";
@@ -33,39 +36,40 @@ const clearAuthCookie = (res) => {
   res.clearCookie("auth_token", { ...COOKIE_OPTIONS, maxAge: 0 });
 };
 
-// Auth middleware: reads from cookie first, then Authorization header
-function verifyToken(req, res, next) {
+// Auth middleware: reads from cookie first, then Authorization header, and attaches user
+async function verifyToken(req, res, next) {
   try {
-    // Try cookie first, then Authorization header
-    const token = req.cookies?.auth_token || 
-      (req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : null);
-    
-    if (!token) return res.status(401).json({ message: "Missing token" });
+    const token =
+      req.cookies?.auth_token ||
+      (req.headers.authorization?.startsWith("Bearer ")
+        ? req.headers.authorization.slice(7)
+        : null);
+
+    if (!token) return sendError(res, 401, "Missing token");
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.id;
-    
-    // Handle special admin token
-    if (decoded.id === "admin_special" && decoded.isAdmin) {
-      req.isSpecialAdmin = true;
-    }
-    
-    next();
+
+    const user = await User.findById(decoded.id);
+    if (!user) return sendError(res, 401, "User not found");
+
+    req.user = user;
+    req.userId = user._id;
+    return next();
   } catch (err) {
-    return res.status(401).json({ message: "Invalid or expired token" });
+    return sendError(res, 401, "Invalid or expired token");
   }
 }
 
 // Signup
-router.post("/signup", async (req, res) => {
-  const { name, email, password } = req.body;
+router.post("/signup", validate(signupSchema), async (req, res) => {
+  const { name, email, password, googleId } = req.validated.body;
   try {
     const existingUser = await User.findOne({ email });
-    if (existingUser) return res.status(400).json({ message: "User already exists" });
+    if (existingUser) return sendError(res, 400, "User already exists");
 
     // Password is optional for Google OAuth users
-    if (!password && !req.body.googleId) {
-      return res.status(400).json({ message: "Password is required for local signup" });
+    if (!password && !googleId) {
+      return sendError(res, 400, "Password is required for local signup");
     }
 
     const hashedPassword = password ? await bcrypt.hash(password, 10) : undefined;
@@ -77,53 +81,26 @@ router.post("/signup", async (req, res) => {
     });
     await user.save();
 
-    res.status(201).json({ message: "User registered successfully" });
+    return sendSuccess(res, 201, {}, "User registered successfully");
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendError(res, 500, err.message || "Signup failed");
   }
 });
 
 // Login
-router.post("/login", async (req, res) => {
-  const emailRaw = req.body.email || "";
-  const password = req.body.password || "";
-  const email = emailRaw.toLowerCase().trim();
+router.post("/login", validate(loginSchema), async (req, res) => {
+  const { email, password } = req.validated.body;
   try {
-    // Special admin login - hardcoded credentials (fast path, no DB check)
-    if (email === "admin123@gmail.com" && password === "adminhere") {
-      // Create a special admin token immediately
-      const adminToken = jwt.sign({ 
-        id: "admin_special", 
-        isAdmin: true, 
-        email: "admin123@gmail.com" 
-      }, process.env.JWT_SECRET, { expiresIn: "1h" });
-
-      setAuthCookie(res, adminToken);
-      return res.json({ 
-        user: {
-          id: "admin_special",
-          name: "System Administrator",
-          email: "admin123@gmail.com",
-          isAdmin: true,
-          role: "admin",
-          createdAt: new Date(),
-          lastLogin: new Date()
-        },
-        isAdmin: true
-      });
-    }
-
-    // Regular user login
     const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ message: "User not found" });
+    if (!user) return sendError(res, 400, "User not found");
 
     // Block immediately if deactivated
     if (user.isActive === false) {
-      return res.status(403).json({ message: "Account is deactivated. Contact support." });
+      return sendError(res, 403, "Account is deactivated. Contact support.");
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ message: "Invalid password" });
+    if (!isMatch) return sendError(res, 400, "Invalid password");
 
     // ✅ Update lastLogin
     user.lastLogin = new Date();
@@ -132,7 +109,7 @@ router.post("/login", async (req, res) => {
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
 
     setAuthCookie(res, token);
-    res.json({ 
+    return sendSuccess(res, 200, {
       user: {
         id: user._id,
         name: user.name,
@@ -143,22 +120,22 @@ router.post("/login", async (req, res) => {
         createdAt: user.createdAt,
         lastLogin: user.lastLogin
       },
-      isAdmin: user.isAdmin || false
+      isAdmin: user.isAdmin || false,
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    sendError(res, 500, err.message || "Login failed");
   }
 });
 
 // Logout - clears httpOnly cookie
 router.post("/logout", (req, res) => {
   clearAuthCookie(res);
-  res.json({ message: "Logged out successfully" });
+  return sendSuccess(res, 200, {}, "Logged out successfully");
 });
 
 // Verify session - checks if cookie is valid
 router.get("/verify", verifyToken, (req, res) => {
-  res.json({ valid: true, userId: req.userId });
+  return sendSuccess(res, 200, { valid: true, userId: req.userId });
 });
 
 // Utility: derive Cloudinary public_id from a secure URL
@@ -190,7 +167,7 @@ function extractCloudinaryPublicId(url) {
 router.delete("/me", verifyToken, async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return sendError(res, 404, "User not found");
 
     // Best-effort: remove avatar from Cloudinary to free storage
     try {
@@ -212,28 +189,28 @@ router.delete("/me", verifyToken, async (req, res) => {
         chats: chatsRes.status === 'fulfilled' ? (chatsRes.value?.deletedCount || 0) : 0,
         contactReports: contactsRes.status === 'fulfilled' ? (contactsRes.value?.deletedCount || 0) : 0,
       };
-      return res.json({ message: "Account deleted successfully", deleted: counts });
+      return sendSuccess(res, 200, { deleted: counts }, "Account deleted successfully");
     } catch (_) {
       // Even if cascade fails, the account was removed; report generic success
-      return res.json({ message: "Account deleted successfully" });
+      return sendSuccess(res, 200, {}, "Account deleted successfully");
     }
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    return sendError(res, 500, err.message || "Failed to delete account");
   }
 });
 
 
 // Update current user (name, email, password)
-router.put("/me", verifyToken, async (req, res) => {
+router.put("/me", verifyToken, validate(updateMeSchema), async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password } = req.validated.body || {};
     const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return sendError(res, 404, "User not found");
 
     // Validate provided name isn't same as current
     if (typeof name === "string" && name.trim()) {
       if (name.trim() === user.name) {
-        return res.status(400).json({ message: "New name must be different from current name" });
+        return sendError(res, 400, "New name must be different from current name");
       }
       user.name = name.trim();
     }
@@ -242,25 +219,21 @@ router.put("/me", verifyToken, async (req, res) => {
     if (typeof email === "string" && email.trim()) {
       const nextEmail = email.toLowerCase().trim();
       if (nextEmail === user.email) {
-        return res.status(400).json({ message: "New email must be different from current email" });
+        return sendError(res, 400, "New email must be different from current email");
       }
       const existing = await User.findOne({ email: nextEmail });
       if (existing && existing._id.toString() !== user._id.toString()) {
-        return res.status(400).json({ message: "Email already in use" });
+        return sendError(res, 400, "Email already in use");
       }
       user.email = nextEmail;
     }
 
     // Update password with 3 changes allowed per 24h, then cooldown until window resets
     if (typeof password === "string" && password.length > 0) {
-      if (password.length < 6) {
-        return res.status(400).json({ message: "Password must be at least 6 characters" });
-      }
-
       // Prevent setting the same password again
       const isSame = await bcrypt.compare(password, user.password);
       if (isSame) {
-        return res.status(400).json({ message: "New password must be different from current password" });
+        return sendError(res, 400, "New password must be different from current password");
       }
 
       const now = Date.now();
@@ -277,7 +250,7 @@ router.put("/me", verifyToken, async (req, res) => {
       if (user.passwordChangeCount >= 3) {
         const remainingMs = twentyFourHours - (now - user.passwordChangeWindowStart.getTime());
         const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
-        return res.status(429).json({ message: `Password change limit reached. Try again in ${remainingHours}h` });
+        return sendError(res, 429, `Password change limit reached. Try again in ${remainingHours}h`);
       }
 
       user.password = await bcrypt.hash(password, 10);
@@ -297,9 +270,9 @@ router.put("/me", verifyToken, async (req, res) => {
       lastLogin: user.lastLogin,
     };
 
-    return res.json({ user: sanitized });
+    return sendSuccess(res, 200, { user: sanitized });
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    return sendError(res, 500, err.message || "Failed to update profile");
   }
 });
 
@@ -307,20 +280,29 @@ router.put("/me", verifyToken, async (req, res) => {
 module.exports = router;
 module.exports.verifyToken = verifyToken;
 
-// Middleware to ensure current user is active (skip for special admin)
+// Middleware to ensure current user is active
 module.exports.ensureActive = async function ensureActive(req, res, next) {
   try {
-    if (req.isSpecialAdmin) return next();
-    const user = await User.findById(req.userId).select('isActive');
-    if (!user) return res.status(401).json({ message: 'User not found' });
+    const user = req.user;
+    if (!user) return sendError(res, 401, 'User not found');
     if (user.isActive === false) {
-      return res.status(403).json({ message: 'Account is deactivated' });
+      return sendError(res, 403, 'Account is deactivated');
     }
     next();
   } catch (err) {
-    return res.status(500).json({ message: err.message });
+    return sendError(res, 500, err.message || 'Internal server error');
   }
 };
+
+// Middleware to ensure current user is admin
+function isAdmin(req, res, next) {
+  if (!req.user?.isAdmin) {
+    return sendError(res, 403, "Admin access required");
+  }
+  next();
+}
+
+module.exports.isAdmin = isAdmin;
 
 // Configure Multer memory storage for avatars (no local files)
 const avatarUpload = multer({
@@ -337,9 +319,9 @@ const avatarUpload = multer({
 // Upload/update current user's avatar
 router.post("/me/avatar", verifyToken, avatarUpload.single("avatar"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ message: "No file uploaded" });
+    if (!req.file) return sendError(res, 400, "No file uploaded");
     const user = await User.findById(req.userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return sendError(res, 404, "User not found");
     const previousAvatarUrl = user.avatar; // keep for deletion after successful upload
 
     // Upload to Cloudinary using a stream
@@ -348,7 +330,7 @@ router.post("/me/avatar", verifyToken, avatarUpload.single("avatar"), async (req
       { folder, public_id: `${req.userId}-${Date.now()}`, resource_type: "image", overwrite: true },
       async (error, result) => {
         try {
-          if (error) return res.status(500).json({ message: error.message || "Upload failed" });
+          if (error) return sendError(res, 500, error.message || "Upload failed");
           user.avatar = result.secure_url;
           await user.save();
           // After saving new avatar, delete previous one to avoid wasting storage
@@ -358,15 +340,15 @@ router.post("/me/avatar", verifyToken, avatarUpload.single("avatar"), async (req
               await cloudinary.uploader.destroy(pubId, { invalidate: true, resource_type: 'image' });
             }
           } catch (_) { /* ignore deletion errors */ }
-          return res.json({ avatar: user.avatar });
+          return sendSuccess(res, 200, { avatar: user.avatar });
         } catch (e) {
-          return res.status(500).json({ message: e.message || "Failed to save avatar" });
+          return sendError(res, 500, e.message || "Failed to save avatar");
         }
       }
     );
     streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
   } catch (err) {
-    return res.status(500).json({ message: err.message || "Failed to upload avatar" });
+    return sendError(res, 500, err.message || "Failed to upload avatar");
   }
 });
 // ===== GOOGLE OAUTH =====
@@ -374,14 +356,10 @@ router.post("/me/avatar", verifyToken, avatarUpload.single("avatar"), async (req
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Google Sign-In (verify token from frontend)
-router.post('/google', async (req, res) => {
+router.post('/google', validate(googleSchema), async (req, res) => {
   try {
-    const { credential } = req.body; // Google JWT token from @react-oauth/google
+    const { credential } = req.validated.body; // Google JWT token from @react-oauth/google
     
-    if (!credential) {
-      return res.status(400).json({ message: 'No credential provided' });
-    }
-
     // Verify the Google token
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
@@ -392,7 +370,7 @@ router.post('/google', async (req, res) => {
     const { sub: googleId, email, name, picture } = payload;
 
     if (!email) {
-      return res.status(400).json({ message: 'Email not provided by Google' });
+      return sendError(res, 400, 'Email not provided by Google');
     }
 
     // Check if user exists
@@ -426,14 +404,14 @@ router.post('/google', async (req, res) => {
 
     // Block if deactivated
     if (user.isActive === false) {
-      return res.status(403).json({ message: 'Account is deactivated. Contact support.' });
+      return sendError(res, 403, 'Account is deactivated. Contact support.');
     }
 
     // Generate JWT
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
     setAuthCookie(res, token);
-    res.json({
+    return sendSuccess(res, 200, {
       user: {
         id: user._id,
         name: user.name,
@@ -448,6 +426,6 @@ router.post('/google', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, "Google auth error");
-    return res.status(500).json({ message: 'Google authentication failed', error: err.message });
+    return sendError(res, 500, 'Google authentication failed', [{ message: err.message }]);
   }
 });

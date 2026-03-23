@@ -17,6 +17,11 @@ Uses httpOnly cookies for JWT storage. Key endpoints:
 - POST `/api/auth/logout` — Clears auth cookie
 - GET `/api/auth/verify` — Validates session from cookie
 
+## Validation & Responses
+- Auth and admin routes use centralized Zod schemas via a `validate` middleware to enforce strict shapes for `body`, `query`, and `params`.
+- Successful API responses include `success: true` along with any payload fields.
+- Failed responses include `success: false`, a human-readable `message`, and, for validation failures, an `errors` array with structured details.
+
 ## Scripts
 - `npm start` to run the server (default port 5000)
 
