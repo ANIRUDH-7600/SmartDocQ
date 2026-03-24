@@ -117,8 +117,7 @@ const HeroSection = () => {
         <div className="hero-container">
           <div className="hero-left">
             <div className="badge">
-              <span>Powered by</span>
-              <Lottie animationData={gemini} loop autoplay className="gemini-icon" aria-hidden="true" />
+              <span>Powered by Gemini</span>
             </div>
             <h1 id="hero-heading" className="hero-heading">
               Your Documents.<br />
