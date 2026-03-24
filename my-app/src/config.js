@@ -12,7 +12,7 @@ export const apiUrl = (path) =>
 export const pyApiUrl = (path) =>
   `${PY_API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
 
-// Prevent multiple redirects on 401
+// Prevent multiple triggers on 401
 let isRedirecting = false;
 
 // Fetch wrapper for authenticated requests using httpOnly cookies
@@ -42,20 +42,16 @@ export const apiFetch = async (
     if (res.status === 401 && !isRedirecting && !isAuthRoute) {
       isRedirecting = true;
 
-      console.warn("Session expired. Redirecting to login...");
+      console.warn("Session expired. Triggering global unauthorized event...");
 
       try {
         localStorage.removeItem("user");
       } catch {}
 
-      // Defer redirect so other in-flight 401 responses hit the isRedirecting guard
-      // before the page unloads, preventing multiple redirect attempts.
+      // Defer event so other in-flight 401 responses hit the isRedirecting guard
+      // before navigation/modal handling finishes.
       setTimeout(() => {
-        window.location.href = "/login";
-
-        // NOTE: window.location.href triggers a full reload → resets isRedirecting.
-        // If you switch to SPA navigation (e.g., navigate('/login')),
-        // you MUST manually reset: isRedirecting = false;
+        window.dispatchEvent(new Event("unauthorized"));
       }, 100);
     }
 

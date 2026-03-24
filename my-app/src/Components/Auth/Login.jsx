@@ -1,10 +1,15 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useCallback } from "react";
 import { useAuthForm } from "./useAuthForm";
 import LoginForm from "./LoginForm";
 import SignupForm from "./SignupForm";
 import "./Login.css";
 
 export default function Login({ onAuthSuccess = () => {}, initialMode = "login", onClose = () => {} }) {
+  const handleAuthSuccess = useCallback((user) => {
+    onAuthSuccess(user);
+    onClose();
+  }, [onAuthSuccess, onClose]);
+
   const {
     isLogin, switchMode,
     loginData, signupData,
@@ -16,7 +21,7 @@ export default function Login({ onAuthSuccess = () => {}, initialMode = "login",
     handleGoogleSuccess,
     togglePasswordVisibility,
     getRef,
-  } = useAuthForm({ onAuthSuccess, initialMode });
+  } = useAuthForm({ onAuthSuccess: handleAuthSuccess, initialMode });
 
   const sliderRef = useRef(null);
   const loginBtnRef = useRef(null);

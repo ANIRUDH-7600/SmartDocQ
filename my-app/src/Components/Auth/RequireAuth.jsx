@@ -1,12 +1,10 @@
 import React from "react";
 import Lottie from "lottie-react";
-import { useNavigate } from "react-router-dom";
 import errorAnimation from "./assets/404-Error.json";
 import { safeParseUser } from "../Layout/Navbar/useAuth";
 import "./RequireAuth.css";
 
 const RequireAuth = ({ children }) => {
-  const navigate = useNavigate();
   const user = safeParseUser(localStorage.getItem("user"));
 
   if (!user) {
@@ -25,7 +23,11 @@ const RequireAuth = ({ children }) => {
           <p className="auth-desc">
             You must be logged in to view this content. Please sign in to continue.
           </p>
-          <button className="auth-login-btn" onClick={() => navigate("/")}>
+          <button
+            className="auth-login-btn"
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("unauthorized"))}
+          >
             Log In
           </button>
         </div>

@@ -33,6 +33,14 @@ export async function submitGoogleAuth(credential, { signal } = {}) {
   return parseJsonSafely(res);
 }
 
+export async function logoutUser({ signal } = {}) {
+  const res = await apiFetch("/api/auth/logout", {
+    method: "POST",
+    signal,
+  });
+  return parseJsonSafely(res);
+}
+
 // Backwards-compatible wrapper (deprecated): submitAuth(type, payload)
 // Prefer calling loginUser / signupUser directly.
 export async function submitAuth(type, payload, opts) {

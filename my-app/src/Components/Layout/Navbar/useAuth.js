@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { apiFetch } from "../../../config";
 import { useToast } from "../../ToastContext";
+import { logoutUser } from "../../../Services/AuthService";
 
 const safeParseUser = (jsonStr) => {
   if (!jsonStr || typeof jsonStr !== "string") return null;
@@ -75,10 +75,9 @@ export function useAuth() {
     try { localStorage.removeItem("user"); } catch {}
     showToast("Logout successful", { type: "success" });
     navigate("/");
-    apiFetch("/api/auth/logout", { method: "POST" })
-      .catch((err) => {
-        console.error("Logout API failed:", err);
-      });
+    logoutUser().catch((err) => {
+      console.error("Logout API failed:", err);
+    });
   }, [navigate, showToast]);
 
   return { user, loading, persistUser, logout };

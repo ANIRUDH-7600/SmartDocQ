@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import Lottie from 'lottie-react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ToastProvider } from './Components/ToastContext';
 import Navbar from './Components/Layout/Navbar';
@@ -16,17 +17,20 @@ import PrivacyPolicy from './Components/PrivacyPolicy';
 import TermsOfService from './Components/TermsOfService';
 import ShareChat from './Components/ShareChat';
 import LandingPage from './Components/LandingPage';
+import errorAnimation from './Animations/404-Page-Error.json';
 import "./App.css";
 
 const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || "";
 
 function PageLayout({ children }) {
   return (
-    <>
+    <div className="page-layout">
       <Navbar />
-      {children}
+      <main className="page-layout-content">
+        {children}
+      </main>
       <Footer />
-    </>
+    </div>
   );
 }
 
@@ -50,25 +54,69 @@ function Main() {
   return (
     <Routes>
       <Route path="/"            element={<PageLayout><Hero /><Body /><Top /></PageLayout>} />
-      <Route path="/login"       element={<PageLayout><Login /></PageLayout>} />
       <Route path="/help"        element={<PageLayout><HelpCenter /></PageLayout>} />
       <Route path="/privacy"     element={<PageLayout><PrivacyPolicy /></PageLayout>} />
       <Route path="/terms"       element={<PageLayout><TermsOfService /></PageLayout>} />
       <Route path="/share/:shareId" element={<PageLayout><ShareChat /></PageLayout>} />
       <Route path="/upload"      element={<RequireAuth><PageLayout><Upload /></PageLayout></RequireAuth>} />
       <Route path="/admin"       element={<AdminRoute />} />
+      <Route
+        path="*"
+        element={(
+          <PageLayout>
+            <div
+              style={{
+                minHeight: "60vh",
+                padding: "40px 16px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                textAlign: "center",
+              }}
+            >
+              <Lottie
+                animationData={errorAnimation}
+                loop
+                autoplay
+                style={{ width: 220, maxWidth: '80%', marginBottom: 24 }}
+              />
+              <h1 style={{ fontSize: "2rem", marginBottom: "12px" }}>Page not found</h1>
+              <p style={{ opacity: 0.7 }}>
+                The page you&apos;re looking for doesn&apos;t exist or has moved.
+              </p>
+            </div>
+          </PageLayout>
+        )}
+      />
     </Routes>
   );
 }
 
 function App() {
   const [revealStarted, setRevealStarted] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      setShowLogin(prev => prev || true);
+    };
+
+    window.addEventListener("unauthorized", handleUnauthorized);
+
+    return () => {
+      window.removeEventListener("unauthorized", handleUnauthorized);
+    };
+  }, []);
 
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
       <BrowserRouter>
         <ToastProvider>
           <LandingPage onRevealStart={() => setRevealStarted(true)} />
+          {showLogin && (
+            <Login onClose={() => setShowLogin(false)} />
+          )}
           <div style={{
             opacity: revealStarted ? 1 : 0,
             transition: 'opacity 0.2s ease',
