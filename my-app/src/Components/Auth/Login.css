@@ -467,6 +467,90 @@
   .password-row { grid-template-columns: 1fr; gap: 16px; }
 }
 
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  .password-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .form-content {
+    gap: 12px;
+  }
+
+  .form-title {
+    font-size: 20px;
+  }
+
+  .form-subtitle {
+    font-size: 13px;
+  }
+
+  .input-group input {
+    padding: 11px 14px;
+    font-size: 14px;
+  }
+
+  .input-group {
+    gap: 5px;
+  }
+
+  .divider {
+    margin: 12px 0;
+  }
+
+  .submit-btn {
+    padding: 12px 20px;
+    font-size: 14px;
+  }
+
+  .auth-submit-wrapper {
+    margin-top: 4px;
+  }
+
+  .password-strength-container {
+    padding: 10px 12px;
+    margin-top: 6px;
+  }
+
+  .strength-header {
+    margin-bottom: 6px;
+  }
+
+  .strength-bar-wrapper {
+    margin-bottom: 10px;
+  }
+
+  .requirements-grid {
+    gap: 4px;
+  }
+
+  .requirement {
+    padding: 3px 0;
+    font-size: 11px;
+  }
+
+  .auth-legal-text {
+    font-size: 10px;
+    margin-top: 6px;
+  }
+
+  .form-toggle {
+    margin-bottom: 12px;
+  }
+
+  .toggle-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+}
+
 @media (max-width: 480px) {
-  .form-title { font-size: 22px; }
+  .form-title { font-size: 18px; }
+
+  .form-content { gap: 10px; }
+
+  .input-group input {
+    padding: 10px 12px;
+  }
 }

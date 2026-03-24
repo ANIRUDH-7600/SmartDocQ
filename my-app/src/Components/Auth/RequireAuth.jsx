@@ -16,8 +16,7 @@ const RequireAuth = ({ children }) => {
               animationData={errorAnimation}
               loop
               autoplay
-              className="auth-lottie"
-            />
+              className="auth-lottie"/>
           </div>
           <h2 className="auth-title">Access Restricted</h2>
           <p className="auth-desc">
@@ -26,8 +25,7 @@ const RequireAuth = ({ children }) => {
           <button
             className="auth-login-btn"
             type="button"
-            onClick={() => window.dispatchEvent(new Event("unauthorized"))}
-          >
+            onClick={() => window.dispatchEvent(new Event("unauthorized"))}>
             Log In
           </button>
         </div>
