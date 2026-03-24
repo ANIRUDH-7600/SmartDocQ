@@ -115,7 +115,24 @@ function App() {
         <ToastProvider>
           <LandingPage onRevealStart={() => setRevealStarted(true)} />
           {showLogin && (
-            <Login onClose={() => setShowLogin(false)} />
+            <div className="overlay" onClick={() => setShowLogin(false)} role="presentation">
+              <div
+                className="popup login-popup"
+                role="dialog"
+                aria-modal="true"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  className="auth-popup-close"
+                  onClick={() => setShowLogin(false)}
+                  aria-label="Close authentication dialog"
+                  type="button"
+                >
+                  ✕
+                </button>
+                <Login onClose={() => setShowLogin(false)} />
+              </div>
+            </div>
           )}
           <div style={{
             opacity: revealStarted ? 1 : 0,
