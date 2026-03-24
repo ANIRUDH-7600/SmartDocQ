@@ -2,7 +2,6 @@ import { useRef, useLayoutEffect, useState, useEffect } from "react";
 import "./HeroSection.css";
 import Lottie from "lottie-react";
 import aiAnimation from "./assets/2.json";
-import gemini from "./assets/Gemini.json";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useNavigate } from "react-router-dom";
