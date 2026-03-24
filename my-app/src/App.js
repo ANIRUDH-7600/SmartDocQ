@@ -4,7 +4,7 @@ import Lottie from 'lottie-react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ToastProvider } from './Components/ToastContext';
 import Navbar from './Components/Layout/Navbar';
-import Hero from './Components/HeroSection';
+import Hero from './Components/Layout/Hero_Section/HeroSection';
 import Body from './Components/BodySection';
 import Top from './Components/Top';
 import Footer from './Components/Footer';

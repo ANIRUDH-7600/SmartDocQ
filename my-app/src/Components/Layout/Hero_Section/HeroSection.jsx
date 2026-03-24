@@ -1,111 +1,17 @@
 import { useRef, useLayoutEffect, useState, useEffect } from "react";
 import "./HeroSection.css";
 import Lottie from "lottie-react";
-import aiAnimation from "../Animations/2.json";
-import gemini from "../Animations/Gemini.json";
+import aiAnimation from "./assets/2.json";
+import gemini from "./assets/Gemini.json";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import f1 from "../Animations/f1.json";
-import f2 from "../Animations/f2.json";
-import f3 from "../Animations/f3.json";
-import f4 from "../Animations/f4.json";
-import f5 from "../Animations/f5.json";
-import f6 from "../Animations/f6.json";
-import f7 from "../Animations/f7.json";
-import f8 from "../Animations/f8.json";
-import f10 from "../Animations/f10.json";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "./ToastContext";
-import ClickSpark from "./Effects/ClickSpark";
+import { useToast } from "../../ToastContext";
+import ClickSpark from "../../Effects/ClickSpark";
+import FeatureCard from "./FeatureCard";
+import { FEATURES } from "./featuresData";
 
 gsap.registerPlugin(ScrollTrigger);
-
-const FEATURES = [
-  {
-    title: "Drop. Upload. Done.",
-    desc: "Drag your PDFs, DOCX, or TXT files and watch the magic happen. Lightning-fast processing, instant previews, and zero hassle — your documents are ready before your coffee cools down.",
-    anim: f1
-  },
-  {
-    title: "Ask Anything. Get Answers.",
-    desc: "No more endless scrolling. Just ask in plain English and get laser-precise answers pulled straight from your docs. It's like having a genius assistant who actually read everything.",
-    anim: f2
-  },
-  {
-    title: "Auto-Generate Quizzes",
-    desc: "Turn any document into an interactive study session. MCQs, True/False, short answers — all auto-generated with instant feedback. Study smarter, not harder.",
-    anim: f3
-  },
-  {
-    title: "It Remembers Everything",
-    desc: "SmartDocQ learns your context. Ask follow-ups, dive deeper, go off on tangents — it keeps up. Every conversation builds on the last, making you unstoppable.",
-    anim: f4
-  },
-  {
-    title: "Rate. Improve. Repeat.",
-    desc: "Love an answer? Hate it? Tell us. Your feedback trains the AI to get better, faster. You're not just using SmartDocQ — you're shaping it.",
-    anim: f5
-  },
-  {
-    title: "Your Digital Workspace",
-    desc: "Every doc, every chat, every insight — organized and accessible. Rename files, export conversations, track history. Your research, your way, always at your fingertips.",
-    anim: f6
-  },
-  {
-    title: "Any Format. Any Source.",
-    desc: "PDF? Check. Word docs? Check. Plain text? Web pages? Check and check. SmartDocQ handles whatever you throw at it without breaking a sweat.",
-    anim: f7
-  },
-  {
-    title: "Fort Knox Security",
-    desc: "Your data stays yours. Enterprise-grade validation, spam detection, and content filtering keep your workspace clean and your information locked down tight.",
-    anim: f8
-  },
-  {
-    title: "Effortless Doc Control",
-    desc: "Bulk actions, one-click exports, smart organization. Manage hundreds of documents like a pro without the complexity. Simple. Clean. Powerful.",
-    anim: f10
-  }
-];
-
-const FeatureCard = ({ title, desc, anim }) => {
-  const cardRef = useRef(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const element = cardRef.current;
-    if (!element) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          observer.unobserve(element);
-        }
-      },
-      { threshold: 0.1, rootMargin: "50px" }
-    );
-
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <article className="box" ref={cardRef} role="listitem">
-      <div className="glass">
-        <div className="feature-lottie-wrapper" aria-hidden="true">
-          {isVisible && (
-            <Lottie animationData={anim} loop className="feature-lottie" />
-          )}
-        </div>
-        <div className="content">
-          <h3>{title}</h3>
-          <p>{desc}</p>
-        </div>
-      </div>
-    </article>
-  );
-};
 
 const HeroSection = () => {
   const sectionRef = useRef(null);
@@ -175,7 +81,6 @@ const HeroSection = () => {
       window.addEventListener("load", onLoad);
     }
 
-    //Debounced ResizeObserver — prevents spamming during Lottie frames
     const ro = new ResizeObserver(() => {
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => ScrollTrigger.refresh(), 100);
@@ -183,7 +88,7 @@ const HeroSection = () => {
     ro.observe(container);
 
     return () => {
-      clearTimeout(resizeTimer); 
+      clearTimeout(resizeTimer);
       tween?.scrollTrigger?.kill();
       tween?.kill();
       ro.disconnect();
