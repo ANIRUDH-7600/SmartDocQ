@@ -12,6 +12,7 @@ export default function LoginForm({
   handleSubmit,
   togglePasswordVisibility,
   handleGoogleSuccess,
+  onForgotPassword,
 }) {
   const { showToast } = useToast();
 
@@ -34,6 +35,7 @@ export default function LoginForm({
             type="email" name="email" placeholder="you@example.com"
             value={loginData.email}
             onChange={handleLoginChange}
+            disabled={loading}
             className={errors.email ? "input-error" : ""}
             autoComplete="off"
           />
@@ -50,16 +52,29 @@ export default function LoginForm({
               name="password" placeholder="••••••••"
               value={loginData.password}
               onChange={handleLoginChange}
+              disabled={loading}
               className={errors.password ? "input-error" : ""}
               autoComplete="off"
             />
             <button type="button" className="password-toggle-btn"
               onClick={toggleLogin}
+              disabled={loading}
               aria-label="Toggle password visibility">
               {showPassword.login ? "🙈" : "👁️"}
             </button>
           </div>
           {errors.password && <span className="error-message">{errors.password}</span>}
+        </div>
+
+        <div className="auth-secondary-actions">
+          <button
+            type="button"
+            className="auth-link-button"
+            onClick={onForgotPassword}
+            disabled={loading}
+          >
+            Forgot password?
+          </button>
         </div>
 
         <div className="auth-submit-wrapper">

@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 const User = require("../models/User");
 const multer = require("multer");
 const path = require("path");
@@ -14,7 +16,7 @@ const { OAuth2Client } = require('google-auth-library');
 const logger = require("../lib/logger");
 const { validate } = require("../middlewares/validate");
 const { sendError, sendSuccess } = require("../middlewares/apiResponse");
-const { signupSchema, loginSchema, updateMeSchema, googleSchema } = require("../validators/authSchemas");
+const { signupSchema, loginSchema, updateMeSchema, forgotPasswordSchema, resetPasswordSchema, googleSchema } = require("../validators/authSchemas");
 
 // Cookie configuration for httpOnly auth
 const isProduction = process.env.NODE_ENV === "production";
@@ -124,6 +126,133 @@ router.post("/login", validate(loginSchema), async (req, res) => {
     });
   } catch (err) {
     sendError(res, 500, err.message || "Login failed");
+  }
+});
+
+// Forgot password - request reset link
+router.post("/forgot-password", validate(forgotPasswordSchema), async (req, res) => {
+  try {
+    const { email: normalizedEmail } = req.validated.body;
+    const user = await User.findOne({ email: normalizedEmail });
+
+    // Always respond the same to avoid leaking which emails exist
+    if (!user) {
+      return sendSuccess(res, 200, {}, "If an account exists, a reset link has been sent.");
+    }
+
+    // Google-only accounts don't have a local password to reset
+    if (user.authProvider === "google" && !user.password) {
+      return sendSuccess(
+        res,
+        200,
+        { provider: "google" },
+        "This account uses Google Sign-In. Please continue with Google."
+      );
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
+
+    user.passwordResetToken = hashedToken;
+    user.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    await user.save();
+
+    const frontendBase = process.env.FRONTEND_URL || "http://localhost:3000";
+    const resetLink = `${frontendBase.replace(/\/$/, "")}/reset-password?token=${rawToken}`;
+
+    if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+      logger.error({ mailUser: process.env.MAIL_USER, hasPass: !!process.env.MAIL_PASS }, "MAIL_USER/MAIL_PASS not configured for forgot-password");
+      return sendError(res, 500, "Email service is not configured");
+    }
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.MAIL_USER,
+        pass: process.env.MAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"SmartDocQ" <${process.env.MAIL_USER}>`,
+      to: user.email,
+      subject: "Reset your SmartDocQ password",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 24px; border: 1px solid #eee; border-radius: 12px; color: #111;">
+          <h2 style="margin-bottom: 16px;">Reset your password</h2>
+
+          <p>Hello,</p>
+
+          <p>We received a request to reset the password for your SmartDocQ account.</p>
+
+          <p>This reset link will remain valid for <strong>15 minutes</strong>.</p>
+
+          <p style="margin: 24px 0;">
+            <a 
+              href="${resetLink}" 
+              style="display: inline-block; padding: 12px 20px; background: #111; color: #fff; text-decoration: none; border-radius: 8px; font-weight: 600;"
+            >
+              Reset your password
+            </a>
+          </p>
+
+          <p>If you didn’t request a password reset, you can safely ignore this email.</p>
+
+          <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;" />
+
+          <p style="font-size: 12px; color: #666;">
+            SmartDocQ Team<br/>
+            This is an automated email, so replies aren’t monitored.
+          </p>
+        </div>
+      `,
+    });
+
+    return sendSuccess(res, 200, {}, "If an account exists, a reset link has been sent.");
+  } catch (err) {
+    logger.error({ err }, "Forgot-password sendMail failed");
+    return sendError(res, 500, err.message || "Failed to send reset link");
+  }
+});
+
+// Reset password - consume token and set new password
+router.post("/reset-password", validate(resetPasswordSchema), async (req, res) => {
+  try {
+    const { token, password } = req.validated.body;
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return sendError(
+        res,
+        400,
+        "This password reset link is no longer valid. Please request a new reset link."
+      );
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    user.lastPasswordChange = new Date();
+    user.passwordChangeCount = 0;
+    user.passwordChangeWindowStart = new Date();
+
+    await user.save();
+
+    return sendSuccess(res, 200, {}, "Password reset successful");
+  } catch (err) {
+    return sendError(res, 500, err.message || "Failed to reset password");
   }
 });
 

@@ -20,38 +20,38 @@ export const FEATURES = [
     anim: f2
   },
   {
-    title: "Auto-Generate Quizzes",
-    desc: "Turn any document into an interactive study session. MCQs, True/False, short answers — all auto-generated with instant feedback. Study smarter, not harder.",
+    title: "Quizzes & Flashcards",
+    desc: "Turn any document into an interactive study session. MCQs, True/False, short answers, and flashcards are auto-generated with explanations and instant feedback.",
     anim: f3
   },
   {
-    title: "It Remembers Everything",
-    desc: "SmartDocQ learns your context. Ask follow-ups, dive deeper, go off on tangents — it keeps up. Every conversation builds on the last, making you unstoppable.",
+    title: "Conversation Per Document",
+    desc: "Each document has its own saved chat history, so you can ask follow-ups, revisit past answers, and keep all your questions in one place.",
     anim: f4
   },
   {
     title: "Rate. Improve. Repeat.",
-    desc: "Love an answer? Hate it? Tell us. Your feedback trains the AI to get better, faster. You're not just using SmartDocQ — you're shaping it.",
+    desc: "Love an answer? Hate it? Use thumbs-up or thumbs-down on responses so we can see what’s working and what needs improvement.",
     anim: f5
   },
   {
     title: "Your Digital Workspace",
-    desc: "Every doc, every chat, every insight — organized and accessible. Rename files, export conversations, track history. Your research, your way, always at your fingertips.",
+    desc: "Every doc, every chat, every insight — organized and accessible. Rename files, summarize content, export or share conversations, and track history in one place.",
     anim: f6
   },
   {
-    title: "Any Format. Any Source.",
-    desc: "PDF? Check. Word docs? Check. Plain text? Web pages? Check and check. SmartDocQ handles whatever you throw at it without breaking a sweat.",
+    title: "PDFs, Word, And Text.",
+    desc: "Upload the core formats you use every day: PDF, Word (.doc/.docx), and plain text — all processed with previews and AI-powered Q&A.",
     anim: f7
   },
   {
-    title: "Fort Knox Security",
-    desc: "Your data stays yours. Enterprise-grade validation, spam detection, and content filtering keep your workspace clean and your information locked down tight.",
+    title: "Built-In Safety",
+    desc: "Your data stays yours. Authentication, consent checks for sensitive content, and content filters for links and profanity help keep your workspace clean and safe.",
     anim: f8
   },
   {
     title: "Effortless Doc Control",
-    desc: "Bulk actions, one-click exports, smart organization. Manage hundreds of documents like a pro without the complexity. Simple. Clean. Powerful.",
+    desc: "Batch uploads, one-click chat exports, renaming, search, and pinned documents make it easy to stay organized as your library grows.",
     anim: f10
   }
 ];

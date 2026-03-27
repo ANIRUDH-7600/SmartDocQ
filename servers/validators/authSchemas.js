@@ -61,6 +61,29 @@ const signupSchema = z.object({ body: signupBody });
 const loginSchema = z.object({ body: loginBody });
 const updateMeSchema = z.object({ body: updateMeBody });
 
+const forgotPasswordSchema = z.object({
+  body: z
+    .object({
+      email: z
+        .string()
+        .email("Valid email is required")
+        .transform((v) => v.toLowerCase().trim()),
+    })
+    .strict(),
+});
+
+const resetPasswordSchema = z.object({
+  body: z
+    .object({
+      token: z
+        .string()
+        .length(64, "Invalid reset token")
+        .regex(/^[a-f0-9]+$/, "Invalid reset token"),
+      password: passwordRules,
+    })
+    .strict(),
+});
+
 const googleSchema = z.object({
   body: z
     .object({
@@ -73,5 +96,7 @@ module.exports = {
   signupSchema,
   loginSchema,
   updateMeSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
   googleSchema,
 };

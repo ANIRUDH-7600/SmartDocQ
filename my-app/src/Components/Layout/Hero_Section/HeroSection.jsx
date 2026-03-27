@@ -5,7 +5,6 @@ import aiAnimation from "./assets/2.json";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useNavigate } from "react-router-dom";
-import { useToast } from "../../ToastContext";
 import ClickSpark from "../../Effects/ClickSpark";
 import FeatureCard from "./FeatureCard";
 import { FEATURES } from "./featuresData";
@@ -16,7 +15,6 @@ const HeroSection = () => {
   const sectionRef = useRef(null);
   const containerRef = useRef(null);
   const navigate = useNavigate();
-  const { showToast } = useToast();
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
@@ -100,7 +98,7 @@ const HeroSection = () => {
     if (user) {
       navigate("/upload");
     } else {
-      showToast("Please log in to get started!", { type: "error" });
+      window.dispatchEvent(new Event("unauthorized"));
     }
   };
 

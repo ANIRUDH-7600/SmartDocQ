@@ -1,10 +1,17 @@
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, useState } from "react";
 import { useAuthForm } from "./useAuthForm";
 import LoginForm from "./LoginForm";
 import SignupForm from "./SignupForm";
+import ForgotPasswordModal from "./ForgotPasswordModal";
 import "./Login.css";
 
-export default function Login({ onAuthSuccess = () => {}, initialMode = "login", onClose = () => {} }) {
+export default function Login({
+  onAuthSuccess = () => {},
+  initialMode = "login",
+  onClose = () => {},
+}) {
+  const [showForgot, setShowForgot] = useState(false);
+
   const handleAuthSuccess = useCallback((user) => {
     onAuthSuccess(user);
     onClose();
@@ -20,12 +27,18 @@ export default function Login({ onAuthSuccess = () => {}, initialMode = "login",
     handleSubmit,
     handleGoogleSuccess,
     togglePasswordVisibility,
+    resetForms,
     getRef,
   } = useAuthForm({ onAuthSuccess: handleAuthSuccess, initialMode });
 
   const sliderRef = useRef(null);
   const loginBtnRef = useRef(null);
   const signupBtnRef = useRef(null);
+
+  // Clear any leftover login/signup values whenever the auth popup is mounted
+  useEffect(() => {
+    resetForms();
+  }, [resetForms]);
 
   useEffect(() => {
     const updateSlider = () => {
@@ -47,55 +60,64 @@ export default function Login({ onAuthSuccess = () => {}, initialMode = "login",
 
   return (
     <div className="auth-container">
-      <div className="form-toggle">
-        <button
-          ref={loginBtnRef}
-          className={`toggle-btn ${isLogin ? "active" : ""}`}
-          onClick={() => switchMode("login")}
-          type="button"
-        >
-          Sign In
-        </button>
-        <button
-          ref={signupBtnRef}
-          className={`toggle-btn ${!isLogin ? "active" : ""}`}
-          onClick={() => switchMode("signup")}
-          type="button"
-        >
-          Sign Up
-        </button>
-        <div ref={sliderRef} className="toggle-slider" />
-      </div>
+      {!showForgot && (
+        <>
+          <div className="form-toggle">
+            <button
+              ref={loginBtnRef}
+              className={`toggle-btn ${isLogin ? "active" : ""}`}
+              onClick={() => switchMode("login")}
+              type="button"
+            >
+              Sign In
+            </button>
+            <button
+              ref={signupBtnRef}
+              className={`toggle-btn ${!isLogin ? "active" : ""}`}
+              onClick={() => switchMode("signup")}
+              type="button"
+            >
+              Sign Up
+            </button>
+            <div ref={sliderRef} className="toggle-slider" />
+          </div>
 
-      <div className={`form-wrapper ${isLogin ? "active" : ""}`}>
-        <LoginForm
-          loginData={loginData}
-          errors={errors}
-          loading={loading}
-          showPassword={showPassword}
-          getRef={getRef}
-          handleChange={handleChange}
-          handleSubmit={handleSubmit}
-          togglePasswordVisibility={togglePasswordVisibility}
-          handleGoogleSuccess={handleGoogleSuccess}
-        />
-      </div>
+          <div className={`form-wrapper ${isLogin ? "active" : ""}`}>
+            <LoginForm
+              loginData={loginData}
+              errors={errors}
+              loading={loading}
+              showPassword={showPassword}
+              getRef={getRef}
+              handleChange={handleChange}
+              handleSubmit={handleSubmit}
+              togglePasswordVisibility={togglePasswordVisibility}
+              handleGoogleSuccess={handleGoogleSuccess}
+              onForgotPassword={() => setShowForgot(true)}
+            />
+          </div>
 
-      <div className={`form-wrapper ${!isLogin ? "active" : ""}`}>
-        <SignupForm
-          signupData={signupData}
-          errors={errors}
-          loading={loading}
-          showPassword={showPassword}
-          passwordStrength={passwordStrength}
-          getRef={getRef}
-          handleChange={handleChange}
-          handleSubmit={handleSubmit}
-          togglePasswordVisibility={togglePasswordVisibility}
-          handleGoogleSuccess={handleGoogleSuccess}
-          onClose={onClose}
-        />
-      </div>
+          <div className={`form-wrapper ${!isLogin ? "active" : ""}`}>
+            <SignupForm
+              signupData={signupData}
+              errors={errors}
+              loading={loading}
+              showPassword={showPassword}
+              passwordStrength={passwordStrength}
+              getRef={getRef}
+              handleChange={handleChange}
+              handleSubmit={handleSubmit}
+              togglePasswordVisibility={togglePasswordVisibility}
+              handleGoogleSuccess={handleGoogleSuccess}
+              onClose={onClose}
+            />
+          </div>
+        </>
+      )}
+
+      {showForgot && (
+        <ForgotPasswordModal onClose={() => setShowForgot(false)} />
+      )}
     </div>
   );
 }

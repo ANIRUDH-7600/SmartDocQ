@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import Lottie from 'lottie-react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
@@ -10,6 +10,7 @@ import Top from './Components/Top';
 import Footer from './Components/Footer';
 import Upload from './Components/UploadPage';
 import Login from './Components/Auth/Login';
+import ResetPasswordPage from './Components/Auth/ResetPasswordPage';
 import RequireAuth from './Components/Auth/RequireAuth';
 import AdminRoute from './Components/Admin/AdminRoute';
 import HelpCenter from './Components/HelpCenter';
@@ -54,6 +55,7 @@ function Main() {
   return (
     <Routes>
       <Route path="/"            element={<PageLayout><Hero /><Body /><Top /></PageLayout>} />
+      <Route path="/reset-password" element={<PageLayout><ResetPasswordPage /></PageLayout>} />
       <Route path="/help"        element={<PageLayout><HelpCenter /></PageLayout>} />
       <Route path="/privacy"     element={<PageLayout><PrivacyPolicy /></PageLayout>} />
       <Route path="/terms"       element={<PageLayout><TermsOfService /></PageLayout>} />
@@ -93,9 +95,13 @@ function Main() {
   );
 }
 
-function App() {
+function AppContent() {
   const [revealStarted, setRevealStarted] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const location = useLocation();
+
+  const isResetRoute = location.pathname === '/reset-password';
+  const shouldShowLanding = !isResetRoute;
 
   useEffect(() => {
     const handleUnauthorized = () => {
@@ -109,40 +115,71 @@ function App() {
     };
   }, []);
 
+  // Prevent background page from scrolling while auth popup is open
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+
+    const html = document.documentElement;
+    const { body } = document;
+
+    if (!showLogin) {
+      html.style.overflow = "";
+      body.style.overflow = "";
+      return undefined;
+    }
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+
+    return () => {
+      html.style.overflow = "";
+      body.style.overflow = "";
+    };
+  }, [showLogin]);
+
+  return (
+    <>
+      {shouldShowLanding && (
+        <LandingPage onRevealStart={() => setRevealStarted(true)} />
+      )}
+      {showLogin && (
+        <div className="overlay" onClick={() => setShowLogin(false)} role="presentation">
+          <div
+            className="popup login-popup"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="auth-popup-close"
+              onClick={() => setShowLogin(false)}
+              aria-label="Close authentication dialog"
+              type="button"
+            >
+              ✕
+            </button>
+            <Login onClose={() => setShowLogin(false)} />
+          </div>
+        </div>
+      )}
+      <div style={{
+        opacity: shouldShowLanding ? (revealStarted ? 1 : 0) : 1,
+        position: 'relative',
+        zIndex: 1,
+        pointerEvents: shouldShowLanding ? (revealStarted ? 'auto' : 'none') : 'auto',
+      }}>
+        <Main />
+      </div>
+    </>
+  );
+}
+
+function App() {
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
       <BrowserRouter>
         <ToastProvider>
-          <LandingPage onRevealStart={() => setRevealStarted(true)} />
-          {showLogin && (
-            <div className="overlay" onClick={() => setShowLogin(false)} role="presentation">
-              <div
-                className="popup login-popup"
-                role="dialog"
-                aria-modal="true"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  className="auth-popup-close"
-                  onClick={() => setShowLogin(false)}
-                  aria-label="Close authentication dialog"
-                  type="button"
-                >
-                  ✕
-                </button>
-                <Login onClose={() => setShowLogin(false)} />
-              </div>
-            </div>
-          )}
-          <div style={{
-            opacity: revealStarted ? 1 : 0,
-            transition: 'opacity 0.2s ease',
-            position: 'relative',
-            zIndex: 1,
-            pointerEvents: revealStarted ? 'auto' : 'none',
-          }}>
-            <Main />
-          </div>
+          <AppContent />
         </ToastProvider>
       </BrowserRouter>
     </GoogleOAuthProvider>

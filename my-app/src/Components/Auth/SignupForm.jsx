@@ -79,6 +79,7 @@ export default function SignupForm({
                 type="email" name="email" placeholder="you@example.com"
                 value={signupData.email}
                 onChange={handleSignupChange}
+                disabled={loading}
                 className={errors.email ? "input-error" : ""}
                 autoComplete="email"
               />
@@ -96,11 +97,13 @@ export default function SignupForm({
                     name="password" placeholder="••••••••"
                     value={signupData.password}
                     onChange={handleSignupChange}
+                    disabled={loading}
                     className={errors.password ? "input-error" : ""}
                     autoComplete="new-password"
                   />
                   <button type="button" className="password-toggle-btn"
                     onClick={toggleSignup}
+                    disabled={loading}
                     aria-label="Toggle password visibility">
                     {showPassword.signup ? "🙈" : "👁️"}
                   </button>
@@ -118,11 +121,13 @@ export default function SignupForm({
                     name="confirmPassword" placeholder="••••••••"
                     value={signupData.confirmPassword}
                     onChange={handleSignupChange}
+                    disabled={loading}
                     className={errors.confirmPassword ? "input-error" : ""}
                     autoComplete="new-password"
                   />
                   <button type="button" className="password-toggle-btn"
                     onClick={toggleConfirm}
+                    disabled={loading}
                     aria-label="Toggle password visibility">
                     {showPassword.confirm ? "🙈" : "👁️"}
                   </button>
