@@ -188,6 +188,8 @@ The application will be running with:
 - `POST /api/auth/login` - User login (sets httpOnly cookie)
 - `POST /api/auth/logout` - Logout (clears cookie)
 - `GET /api/auth/verify` - Verify session from cookie
+ - `POST /api/auth/forgot-password` - Request password reset email (always returns a generic success message; Google-only accounts are instructed to continue with Google Sign-In)
+ - `POST /api/auth/reset-password` - Reset password using a one-time, 15-minute token sent via email
 
 ### Document Endpoints (Node API)
 - `POST /api/document/upload` - Upload single document

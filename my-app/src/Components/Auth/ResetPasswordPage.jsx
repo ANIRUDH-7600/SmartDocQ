@@ -2,6 +2,31 @@ import React, { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { resetPassword } from "../../Services/AuthService";
 import { useToast } from "../ToastContext";
+import PasswordStrength from "./PasswordStrength";
+
+const INITIAL_STRENGTH = { score: 0, label: "", requirements: {} };
+
+const calculatePasswordStrength = (password) => {
+  if (!password) return INITIAL_STRENGTH;
+
+  const requirements = {
+    length: password.length >= 8,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /[0-9]/.test(password),
+    special: /[^A-Za-z0-9]/.test(password),
+  };
+
+  const score =
+    (requirements.length ? 25 : 0) +
+    (requirements.uppercase ? 20 : 0) +
+    (requirements.lowercase ? 15 : 0) +
+    (requirements.number ? 20 : 0) +
+    (requirements.special ? 20 : 0);
+
+  const label = score < 40 ? "Weak" : score < 70 ? "Medium" : "Strong";
+  return { score, label, requirements };
+};
 
 export default function ResetPasswordPage() {
   const [params] = useSearchParams();
@@ -12,14 +37,15 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [passwordStrength, setPasswordStrength] = useState(INITIAL_STRENGTH);
   const { showToast } = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const nextPwd = password.trim();
-    const nextConfirm = confirmPassword.trim();
+    const nextPwd = password;
+    const nextConfirm = confirmPassword;
 
     if (!nextPwd || !nextConfirm) {
       showToast("Please fill in both password fields", { type: "error" });
@@ -28,11 +54,6 @@ export default function ResetPasswordPage() {
 
     if (nextPwd !== nextConfirm) {
       showToast("Passwords do not match", { type: "error" });
-      return;
-    }
-
-    if (!token) {
-      showToast("Reset link is invalid or missing.", { type: "error" });
       return;
     }
 
@@ -54,6 +75,19 @@ export default function ResetPasswordPage() {
     }
   };
 
+  if (!token) {
+    return (
+      <div className="reset-page">
+        <div className="reset-card">
+          <h2 className="form-title">Invalid reset link</h2>
+          <p className="form-subtitle">
+            This password reset link is missing or invalid.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="reset-page">
       <div className="reset-card">
@@ -69,9 +103,14 @@ export default function ResetPasswordPage() {
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setPassword(next);
+                  setPasswordStrength(calculatePasswordStrength(next));
+                }}
                 disabled={loading}
                 autoComplete="new-password"
+                autoFocus
               />
               <button
                 type="button"
@@ -84,6 +123,8 @@ export default function ResetPasswordPage() {
               </button>
             </div>
           </div>
+
+          <PasswordStrength password={password} strength={passwordStrength} />
 
           <div className="input-group" style={{ marginTop: "12px" }}>
             <label htmlFor="reset-password-confirm">Confirm password</label>
