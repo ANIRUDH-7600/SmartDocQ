@@ -9,22 +9,14 @@ export default function ForgotPasswordModal({ onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const trimmedEmail = email.trim();
-
-    if (!trimmedEmail) {
+    if (!email.trim()) {
       showToast("Please enter your email", { type: "error" });
-      return;
-    }
-
-    if (!/\S+@\S+\.\S+/.test(trimmedEmail)) {
-      showToast("Please enter a valid email address", { type: "error" });
       return;
     }
 
     setLoading(true);
     try {
-      const { ok, data } = await forgotPassword(trimmedEmail);
+      const { ok, data } = await forgotPassword(email.trim());
       if (ok) {
         showToast(data.message || "If account exists, email sent", { type: "success" });
         if (onClose) onClose();

@@ -18,8 +18,8 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const nextPwd = password;
-    const nextConfirm = confirmPassword;
+    const nextPwd = password.trim();
+    const nextConfirm = confirmPassword.trim();
 
     if (!nextPwd || !nextConfirm) {
       showToast("Please fill in both password fields", { type: "error" });
@@ -53,19 +53,6 @@ export default function ResetPasswordPage() {
       setLoading(false);
     }
   };
-
-  if (!token) {
-    return (
-      <div className="reset-page">
-        <div className="reset-card">
-          <h2 className="form-title">Invalid reset link</h2>
-          <p className="form-subtitle">
-            This password reset link is missing or invalid.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="reset-page">
