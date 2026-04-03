@@ -1,0 +1,72 @@
+.settings-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #1a1a1a;
+  border-radius: 12px;
+}
+
+.settings-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-card {
+  background: #222;
+  border-radius: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.settings-card h3 {
+  margin: 0 0 4px 0;
+  font-size: clamp(0.95rem, 1.8vw, 1rem);
+  font-weight: 500;
+  color: #fff;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.settings-card p {
+  font-size: clamp(0.82rem, 1.6vw, 0.9rem);
+  color: #999;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.settings-btn {
+  background: #333;
+  color: #eee;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: background 0.2s ease;
+}
+
+.settings-btn:hover {
+  background: #444;
+}
+
+.settings-btn.danger {
+  background: #b22222;
+}
+
+.settings-btn.danger:hover {
+  background: #a11c1c;
+}
+
+.settings-card.warning {
+  border-left: 3px solid #f4a261;
+}
+
+.settings-card.danger-zone {
+  border-left: 3px solid #e63946;
+}

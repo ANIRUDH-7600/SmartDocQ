@@ -2,7 +2,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import Login from "../../Auth/Login";
 import Contact from "../../Contact";
-import Account from "../../Account";
+import Account from "../Account/Account";
 
 export default function NavDialogs({ popup, user, onClose, onAuthSuccess, onUserUpdate }) {
   const body = typeof document !== "undefined" ? document.body : null;
