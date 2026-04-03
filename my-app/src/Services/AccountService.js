@@ -1,5 +1,13 @@
 import { apiUrl } from "../config";
 
+async function parseResponse(res, fallbackMessage) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.message || fallbackMessage);
+  }
+  return data;
+}
+
 export async function updateProfile(payload) {
   const res = await fetch(apiUrl("/api/auth/me"), {
     method: "PUT",
@@ -8,12 +16,13 @@ export async function updateProfile(payload) {
     body: JSON.stringify(payload),
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to update profile");
+  const data = await parseResponse(res, "Failed to update profile");
   return data.user;
 }
 
 export async function uploadAvatar(file) {
+  if (!file) throw new Error("No avatar file provided");
+
   const form = new FormData();
   form.append("avatar", file, file.name || "avatar.jpg");
 
@@ -23,8 +32,7 @@ export async function uploadAvatar(file) {
     body: form,
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.message || "Failed to upload avatar");
+  const data = await parseResponse(res, "Failed to upload avatar");
   return { avatar: data.avatar };
 }
 
@@ -34,8 +42,7 @@ export async function clearChatHistory() {
     credentials: "include",
   });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || "Failed to clear chat history");
+  const data = await parseResponse(res, "Failed to clear chat history");
   return data;
 }
 
@@ -45,7 +52,6 @@ export async function deleteAccount() {
     credentials: "include",
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || "Failed to delete account");
+  const data = await parseResponse(res, "Failed to delete account");
   return data;
 }

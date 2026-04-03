@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import "./Account.css";
 import ppic from "./assets/p-pic.png";
 import { useToast } from "../../ToastContext";
@@ -19,8 +20,9 @@ import {
   MAX_AVATAR_BYTES,
 } from "./accountUtils";
 
-function Account({ user, onClose, onUpdated }) {
+function Account({ user, onClose, onUpdated, onHistoryCleared }) {
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const [avatarPreview, setAvatarPreview] = useState(user.avatar || ppic);
   const [avatarFile, setAvatarFile] = useState(null);
@@ -35,19 +37,39 @@ function Account({ user, onClose, onUpdated }) {
   const [activeTab, setActiveTab] = useState("account");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const passwordRef = useRef();
   const confirmPasswordRef = useRef();
+  const avatarInputRef = useRef();
+
+  const revokeIfBlob = (url) => {
+    if (url && typeof url === "string" && url.startsWith("blob:")) {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   useEffect(() => {
     return () => {
-      if (avatarPreview && avatarPreview.startsWith("blob:")) {
-        try {
-          URL.revokeObjectURL(avatarPreview);
-        } catch (_) {}
-      }
+      revokeIfBlob(avatarPreview);
     };
   }, [avatarPreview]);
+
+  useEffect(() => {
+    setFormData({
+      name: user.name,
+      email: user.email,
+    });
+
+    setAvatarPreview((prev) => {
+      revokeIfBlob(prev);
+      return user.avatar || ppic;
+    });
+  }, [user]);
 
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
@@ -55,7 +77,7 @@ function Account({ user, onClose, onUpdated }) {
 
     if (file.size >= MAX_AVATAR_BYTES) {
       showToast("Image must be smaller than 1MB", { type: "error" });
-      e.target.value = "";
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
       return;
     }
 
@@ -63,17 +85,14 @@ function Account({ user, onClose, onUpdated }) {
       const newUrl = URL.createObjectURL(file);
 
       setAvatarPreview((prev) => {
-        if (prev && prev.startsWith("blob:")) {
-          try {
-            URL.revokeObjectURL(prev);
-          } catch (_) {}
-        }
+        revokeIfBlob(prev);
         return newUrl;
       });
 
       setAvatarFile(file);
     } catch (err) {
-      showToast(err.message || "Failed to prepare avatar", { type: "error" });
+      console.warn("Avatar preview failed", err);
+      showToast(err?.message || "Failed to prepare avatar", { type: "error" });
     }
   };
 
@@ -96,8 +115,10 @@ function Account({ user, onClose, onUpdated }) {
     if (passwordRef.current) passwordRef.current.value = "";
     if (confirmPasswordRef.current) confirmPasswordRef.current.value = "";
 
+    revokeIfBlob(avatarPreview);
     setAvatarPreview(user.avatar || ppic);
     setAvatarFile(null);
+    if (avatarInputRef.current) avatarInputRef.current.value = "";
   };
 
   const handleSave = async () => {
@@ -147,7 +168,9 @@ function Account({ user, onClose, onUpdated }) {
                 quality: 0.82,
                 mime: "image/jpeg",
               });
-            } catch (_) {}
+            } catch (err) {
+              console.warn("Avatar compression failed, using original image", err);
+            }
             return uploadAvatar(uploadFile);
           })()
         : null;
@@ -158,7 +181,7 @@ function Account({ user, onClose, onUpdated }) {
       });
 
       localStorage.setItem("user", JSON.stringify(updatedUser));
-      onUpdated && onUpdated(updatedUser);
+      onUpdated?.(updatedUser);
 
       showToast("Profile updated successfully", { type: "success" });
       setIsEditing(false);
@@ -168,15 +191,12 @@ function Account({ user, onClose, onUpdated }) {
       setAvatarFile(null);
 
       setAvatarPreview((prev) => {
-        if (prev && prev.startsWith("blob:")) {
-          try {
-            URL.revokeObjectURL(prev);
-          } catch (_) {}
-        }
+        revokeIfBlob(prev);
         return updatedUser.avatar || ppic;
       });
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
     } catch (err) {
-      showToast(err.message || "Failed to update profile", { type: "error" });
+      showToast(err?.message || "Failed to update profile", { type: "error" });
     } finally {
       setIsSaving(false);
     }
@@ -187,27 +207,29 @@ function Account({ user, onClose, onUpdated }) {
     try {
       await clearChatHistory();
       showToast("Chat history cleared!", { type: "success" });
-      setTimeout(() => {
-        window.location.reload();
-      }, 600);
+      onHistoryCleared?.();
+      onClose?.();
     } catch (err) {
-      showToast(err.message || "Failed to clear chat history", { type: "error" });
+      showToast(err?.message || "Failed to clear chat history", { type: "error" });
     } finally {
       setIsClearingHistory(false);
     }
   };
 
   const handleDeleteAccount = async () => {
+    setIsDeleting(true);
     try {
       await deleteAccount();
       localStorage.removeItem("user");
       showToast("Account deleted permanently!", { type: "success" });
 
       setShowDeleteModal(false);
-      onClose();
-      window.location.reload();
+      onClose?.();
+      navigate("/");
     } catch (err) {
-      showToast(err.message || "Failed to delete account", { type: "error" });
+      showToast(err?.message || "Failed to delete account", { type: "error" });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -230,7 +252,13 @@ function Account({ user, onClose, onUpdated }) {
                   {isEditing && (
                     <label className="avatar-edit-btn">
                       ✎
-                      <input type="file" accept="image/*" onChange={handleAvatarChange} />
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarChange}
+                        disabled={isSaving}
+                      />
                     </label>
                   )}
                 </div>
@@ -239,14 +267,18 @@ function Account({ user, onClose, onUpdated }) {
 
               <div className="sidebar-menu">
                 <button
+                  type="button"
                   className={`menu-btn ${activeTab === "account" ? "active" : ""}`}
                   onClick={() => setActiveTab("account")}
+                  disabled={isSaving}
                 >
                   Account
                 </button>
                 <button
+                  type="button"
                   className={`menu-btn ${activeTab === "settings" ? "active" : ""}`}
                   onClick={() => setActiveTab("settings")}
+                  disabled={isSaving}
                 >
                   Settings
                 </button>
@@ -306,12 +338,19 @@ function Account({ user, onClose, onUpdated }) {
               This action <strong>cannot</strong> be undone.
             </p>
             <div className="modal-actions">
-              <button className="modal-btn danger" onClick={handleDeleteAccount}>
-                Yes, Delete
+              <button
+                type="button"
+                className="modal-btn danger"
+                onClick={handleDeleteAccount}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Yes, Delete"}
               </button>
               <button
+                type="button"
                 className="modal-btn secondary"
                 onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
               >
                 Cancel
               </button>
