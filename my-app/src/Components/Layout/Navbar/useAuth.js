@@ -26,6 +26,18 @@ const safeParseUser = (jsonStr) => {
   }
 };
 
+const getStoredUser = () => {
+  const saved = localStorage.getItem("user");
+  const parsed = safeParseUser(saved);
+
+  if (saved && !parsed) {
+    console.warn("Invalid user data removed from storage");
+    localStorage.removeItem("user");
+  }
+
+  return parsed;
+};
+
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,13 +47,7 @@ export function useAuth() {
   // Initialize user state from localStorage
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("user");
-      const parsed = safeParseUser(saved);
-      if (saved && !parsed) {
-        console.warn("Invalid user data removed from storage");
-        localStorage.removeItem("user");
-      }
-      setUser(parsed);
+      setUser(getStoredUser());
     } catch (err) {
       console.error("Auth init failed:", err);
       setUser(null);
@@ -50,29 +56,50 @@ export function useAuth() {
     }
   }, []);
 
-  // Keep auth state in sync across browser tabs
+  // Keep auth state in sync across browser tabs and same-tab changes
   useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === "user") setUser(safeParseUser(e.newValue));
+    const syncUser = () => {
+      try {
+        setUser(getStoredUser());
+      } catch {
+        setUser(null);
+      }
     };
+
+    const onStorage = (e) => {
+      if (e.key === "user") syncUser();
+    };
+
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener("userChanged", syncUser);
+
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("userChanged", syncUser);
+    };
   }, []);
 
   const persistUser = useCallback((userData) => {
     const validated = safeParseUser(
       typeof userData === "string" ? userData : JSON.stringify(userData)
     );
-    if (!validated) return;
+    if (!validated) {
+      console.warn("persistUser called with invalid user data");
+      return;
+    }
     try {
       localStorage.setItem("user", JSON.stringify(validated));
     } catch {}
     setUser(validated);
+    try {
+      window.dispatchEvent(new Event("userChanged"));
+    } catch {}
   }, []);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(() => {
     setUser(null);
     try { localStorage.removeItem("user"); } catch {}
+    try { window.dispatchEvent(new Event("userChanged")); } catch {}
     showToast("Logout successful", { type: "success" });
     navigate("/");
     logoutUser().catch((err) => {
