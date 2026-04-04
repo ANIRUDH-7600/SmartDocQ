@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect, useCallback, useState } from "react";
 
 const ClickSpark = ({
   sparkColor = "#fff",
@@ -13,6 +13,22 @@ const ClickSpark = ({
   const canvasRef = useRef(null);
   const sparksRef = useRef([]);
   const startTimeRef = useRef(null);
+  const [isTouchLike, setIsTouchLike] = useState(false);
+
+  // Detect touch / coarse pointer devices (mobile & tablets) and disable sparks there
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const hasTouch =
+      "ontouchstart" in window ||
+      (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0);
+
+    const coarseQuery = window.matchMedia
+      ? window.matchMedia("(pointer: coarse)")
+      : null;
+
+    setIsTouchLike(Boolean(hasTouch || coarseQuery?.matches));
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -114,6 +130,8 @@ const ClickSpark = ({
   }, [sparkColor, sparkSize, sparkRadius, duration, easeFunc, extraScale]);
 
   const handleClick = (e) => {
+    if (isTouchLike) return; // no sparks on touch / mobile / tablet
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();

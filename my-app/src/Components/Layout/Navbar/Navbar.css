@@ -416,8 +416,7 @@
     order: 3;
     margin-left: auto;
     margin-top: 0;
-    display: flex;
-    align-items: center;
+    display: none; /* hide separate profile/login on mobile; use menu sheet instead */
   }
 
   .nav-links-container { display: none !important; }
