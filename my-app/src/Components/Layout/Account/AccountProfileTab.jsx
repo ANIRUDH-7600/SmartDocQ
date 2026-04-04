@@ -44,6 +44,12 @@ function AccountProfileTab({
     </div>
   );
 
+  const isJoinedPlaceholder = !joinedDate || joinedDate === "—";
+  const joinedDisplay = isJoinedPlaceholder ? "Not set yet" : joinedDate;
+
+  const isLastLoginPlaceholder = !lastLogin || lastLogin === "Never";
+  const lastLoginDisplay = isLastLoginPlaceholder ? "Never logged in" : lastLogin;
+
   return (
     <>
       <div className="account-header">
@@ -112,12 +118,24 @@ function AccountProfileTab({
         <div className="account-details">
           <div className="detail-row">
             <span className="detail-label">Joined:</span>
-            <span className="detail-value">{joinedDate}</span>
+            <span
+              className={`detail-value ${
+                isJoinedPlaceholder ? "detail-placeholder" : ""
+              }`}
+            >
+              {joinedDisplay}
+            </span>
           </div>
 
           <div className="detail-row">
             <span className="detail-label">Last Login:</span>
-            <span className="detail-value">{lastLogin}</span>
+            <span
+              className={`detail-value ${
+                isLastLoginPlaceholder ? "detail-placeholder" : ""
+              }`}
+            >
+              {lastLoginDisplay}
+            </span>
           </div>
         </div>
       )}

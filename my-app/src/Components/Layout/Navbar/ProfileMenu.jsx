@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
-import lg from "./assets/lg.png";
-import lg1 from "./assets/lg1.png";
+import profileIcon from "./assets/profile.svg";
+import logoutIcon from "./assets/logout.svg";
 
 export default function ProfileMenu({ triggerRef, onProfile, onLogout, onClose }) {
   const menuRef = useRef(null);
@@ -59,10 +59,10 @@ export default function ProfileMenu({ triggerRef, onProfile, onLogout, onClose }
       }}
     >
       <button className="dd" type="button" role="menuitem" onClick={onProfile}>
-        <img src={lg1} alt="" className="dpi" aria-hidden="true" />Profile
+        <img src={profileIcon} alt="" className="dpi" aria-hidden="true" />Profile
       </button>
       <button className="dd" type="button" role="menuitem" onClick={onLogout}>
-        <img src={lg} alt="" className="dpi" aria-hidden="true" />Logout
+        <img src={logoutIcon} alt="" className="dpi" aria-hidden="true" />Logout
       </button>
     </div>,
     body

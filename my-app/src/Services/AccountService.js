@@ -42,8 +42,7 @@ export async function clearChatHistory() {
     credentials: "include",
   });
 
-  const data = await parseResponse(res, "Failed to clear chat history");
-  return data;
+  return parseResponse(res, "Failed to clear chat history");
 }
 
 export async function deleteAccount() {
@@ -52,6 +51,5 @@ export async function deleteAccount() {
     credentials: "include",
   });
 
-  const data = await parseResponse(res, "Failed to delete account");
-  return data;
+  return parseResponse(res, "Failed to delete account");
 }

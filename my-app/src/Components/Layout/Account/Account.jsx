@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Account.css";
-import ppic from "./assets/p-pic.png";
+import userIcon from "./assets/user.svg";
 import { useToast } from "../../ToastContext";
 import AccountProfileTab from "./AccountProfileTab";
 import AccountSettingsTab from "./AccountSettingsTab";
@@ -24,7 +24,7 @@ function Account({ user, onClose, onUpdated, onHistoryCleared }) {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const [avatarPreview, setAvatarPreview] = useState(user.avatar || ppic);
+  const [avatarPreview, setAvatarPreview] = useState(user.avatar || userIcon);
   const [avatarFile, setAvatarFile] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -67,7 +67,7 @@ function Account({ user, onClose, onUpdated, onHistoryCleared }) {
 
     setAvatarPreview((prev) => {
       revokeIfBlob(prev);
-      return user.avatar || ppic;
+      return user.avatar || userIcon;
     });
   }, [user]);
 
@@ -116,7 +116,7 @@ function Account({ user, onClose, onUpdated, onHistoryCleared }) {
     if (confirmPasswordRef.current) confirmPasswordRef.current.value = "";
 
     revokeIfBlob(avatarPreview);
-    setAvatarPreview(user.avatar || ppic);
+    setAvatarPreview(user.avatar || userIcon);
     setAvatarFile(null);
     if (avatarInputRef.current) avatarInputRef.current.value = "";
   };
@@ -192,7 +192,7 @@ function Account({ user, onClose, onUpdated, onHistoryCleared }) {
 
       setAvatarPreview((prev) => {
         revokeIfBlob(prev);
-        return updatedUser.avatar || ppic;
+        return updatedUser.avatar || userIcon;
       });
       if (avatarInputRef.current) avatarInputRef.current.value = "";
     } catch (err) {
@@ -236,6 +236,9 @@ function Account({ user, onClose, onUpdated, onHistoryCleared }) {
   const joinedDate = formatJoinedDate(user.createdAt);
   const lastLogin = formatLastLogin(user.lastLogin);
 
+  const effectiveAvatar = avatarPreview || user.avatar || userIcon;
+  const isDefaultAvatarIcon = !user.avatar && (avatarPreview === userIcon || (!avatarPreview && !user.avatar));
+
   return (
     <>
       <div className="account-overlay" onClick={onClose}>
@@ -245,9 +248,9 @@ function Account({ user, onClose, onUpdated, onHistoryCleared }) {
               <div className="sidebar-profile">
                 <div className="avatar-wrapper">
                   <img
-                    src={avatarPreview || user.avatar || ppic}
+                    src={effectiveAvatar}
                     alt="User Avatar"
-                    className="account-avatar"
+                    className={`account-avatar${isDefaultAvatarIcon ? " account-avatar--icon" : ""}`}
                   />
                   {isEditing && (
                     <label className="avatar-edit-btn">
