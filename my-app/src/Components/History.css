@@ -11,8 +11,7 @@
   flex-direction: column;
   user-select: none;
   -webkit-user-drag: none;
-  /* Let history stretch a bit further down toward the footer */
-  max-height: calc(110vh);
+  max-height:90vh;
 }
 
 .history-header {
