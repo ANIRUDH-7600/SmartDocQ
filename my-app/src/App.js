@@ -8,7 +8,7 @@ import Hero from './Components/Layout/Hero_Section/HeroSection';
 import Body from './Components/Layout/Body_Section/BodySection';
 import Top from './Components/Top';
 import Footer from './Components/Layout/Footer/Footer';
-import Upload from './Components/UploadPage';
+import Upload from './Components/Pages/Upload_Page/UploadPage';
 import Login from './Components/Auth/Login';
 import ResetPasswordPage from './Components/Auth/ResetPasswordPage';
 import RequireAuth from './Components/Auth/RequireAuth';

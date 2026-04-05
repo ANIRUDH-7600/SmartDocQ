@@ -246,6 +246,26 @@
   background: #e5e5e5;
 }
 
+/* Contact popup mobile layout */
+@media (max-width: 640px) {
+  .contact-popup {
+    width: calc(100vw - 32px);
+    max-width: 480px;
+    max-height: calc(100vh - 32px);
+    margin: 16px;
+    border-radius: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .contact-popup {
+    width: calc(100vw - 24px);
+    max-width: none;
+    max-height: calc(100vh - 24px);
+    margin: 12px;
+  }
+}
+
 .close-btn {
   position: absolute;
   top: 16px;
