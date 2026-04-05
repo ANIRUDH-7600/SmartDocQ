@@ -27,7 +27,7 @@ function resolveDocId(doc) {
 const UploadPage = () => {
   const { showToast } = useToast();
   const [currentDoc, setCurrentDoc] = useState(null);
-  const [uploaded, setUploaded] = useState(false);
+  const [, setUploaded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
