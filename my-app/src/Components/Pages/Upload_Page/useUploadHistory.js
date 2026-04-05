@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   deleteDocument,
   downloadDocument,
@@ -9,8 +9,12 @@ import {
   unpinDocument,
 } from "../../../Services/DocumentService";
 import { fetchChatHistory } from "../../../Services/ChatService";
-import { sanitizeFilename, validateFilename } from "./fileHelpers";
+import { validateFilename } from "./fileHelpers";
 import { mapDocumentFromApi } from "./documentMappers";
+
+function resolveDocId(doc) {
+  return doc?.documentId || doc?._id || doc?.id || null;
+}
 
 export default function useUploadHistory(showToast, setters) {
   const {
@@ -22,6 +26,7 @@ export default function useUploadHistory(showToast, setters) {
   } = setters;
 
   const [history, setHistory] = useState([]);
+  const latestSelectionRef = useRef(0);
 
   const fetchHistory = useCallback(async () => {
     try {
@@ -40,8 +45,8 @@ export default function useUploadHistory(showToast, setters) {
     try {
       await deleteDocument(id);
 
-      const currentDocId = currentDoc?.documentId || currentDoc?._id || currentDoc?.id;
-      if (currentDocId === id) {
+      const currentDocId = resolveDocId(currentDoc);
+      if (currentDocId && currentDocId === id) {
         setChat([]);
         setCurrentDoc(null);
         setUploaded(false);
@@ -64,7 +69,7 @@ export default function useUploadHistory(showToast, setters) {
 
       await renameDocument(id, newName);
 
-      showToast?.(`Renamed to "${sanitizeFilename(newName)}"`, { type: "success" });
+      showToast?.(`Renamed to "${newName}"`, { type: "success" });
       fetchHistory();
     } catch (err) {
       showToast?.(err.message, { type: "error" });
@@ -75,11 +80,16 @@ export default function useUploadHistory(showToast, setters) {
     try {
       const item = history.find((h) => h.id === id);
       if (!item) return;
+      const docId = resolveDocId(item);
+      if (!docId) {
+        showToast?.("Invalid document ID for pin", { type: "error" });
+        return;
+      }
 
       if (item.pinned) {
-        await unpinDocument(item.documentId);
+        await unpinDocument(docId);
       } else {
-        await pinDocument(item.documentId);
+        await pinDocument(docId);
       }
 
       setHistory((prev) =>
@@ -98,6 +108,13 @@ export default function useUploadHistory(showToast, setters) {
 
   const selectHistoryItem = async (item) => {
     try {
+      const selectionId = ++latestSelectionRef.current;
+      const resolvedId = resolveDocId(item);
+      if (!resolvedId) {
+        showToast?.("Missing document ID for selection", { type: "error" });
+        return;
+      }
+
       setCurrentDoc(item);
       setUploaded(true);
       setIsPreviewOpen(true);
@@ -110,10 +127,11 @@ export default function useUploadHistory(showToast, setters) {
       const isConvertedToPdf = isOriginallyWord && item.type === "application/pdf";
 
       if (isConvertedToPdf || item.type === "application/pdf") {
-        const downloadRes = await downloadDocument(item.documentId);
+        const downloadRes = await downloadDocument(resolvedId);
         if (!downloadRes.ok) throw new Error("Failed to load PDF");
 
         const blob = await downloadRes.blob();
+        if (latestSelectionRef.current !== selectionId) return;
         const f = new File([blob], item.name || "document.pdf", {
           type: "application/pdf",
         });
@@ -130,11 +148,12 @@ export default function useUploadHistory(showToast, setters) {
 
         if (isWord) {
           try {
-            const previewUrl = getPythonPreviewUrl(item.id || item.documentId);
+            const previewUrl = getPythonPreviewUrl(resolvedId);
             const previewRes = await fetch(previewUrl);
 
             if (previewRes.ok) {
               const blob = await previewRes.blob();
+              if (latestSelectionRef.current !== selectionId) return;
               const f = new File([blob], item.name || "document.pdf", {
                 type: "application/pdf",
               });
@@ -143,10 +162,11 @@ export default function useUploadHistory(showToast, setters) {
               throw new Error("Preview not available");
             }
           } catch {
-            const res = await downloadDocument(item.documentId || item.id);
+            const res = await downloadDocument(resolvedId);
             if (!res.ok) throw new Error("Failed to download document");
 
             const blob = await res.blob();
+            if (latestSelectionRef.current !== selectionId) return;
             const f = new File([blob], item.name || "document", {
               type: item.type || blob.type || "application/octet-stream",
             });
@@ -154,10 +174,11 @@ export default function useUploadHistory(showToast, setters) {
             selectFile(f);
           }
         } else {
-          const res = await downloadDocument(item.documentId || item.id);
+          const res = await downloadDocument(resolvedId);
           if (!res.ok) throw new Error("Failed to download document");
 
           const blob = await res.blob();
+          if (latestSelectionRef.current !== selectionId) return;
           const f = new File([blob], item.name || "document", {
             type: item.type || blob.type || "application/octet-stream",
           });
@@ -166,16 +187,12 @@ export default function useUploadHistory(showToast, setters) {
         }
       }
 
-      showToast?.(`Opened ${sanitizeFilename(item.name)}`, { type: "info" });
+      showToast?.(`Opened ${item.name || "document"}`, { type: "info" });
 
       try {
-        const chatRes = await fetchChatHistory(item.documentId || item._id || item.id);
-        if (chatRes.ok) {
-          const data = await chatRes.json();
-          setChat(Array.isArray(data.messages) ? data.messages : []);
-        } else {
-          setChat([]);
-        }
+        const data = await fetchChatHistory(resolvedId);
+        if (latestSelectionRef.current !== selectionId) return;
+        setChat(Array.isArray(data.messages) ? data.messages : []);
       } catch {
         setChat([]);
       }

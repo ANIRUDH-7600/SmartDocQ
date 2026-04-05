@@ -18,7 +18,11 @@ import {
 } from "../../../Services/DocumentService";
 
 import { buildCurrentDocFromUpload } from "./documentMappers";
-import { sanitizeFilename, formatBytes } from "./fileHelpers";
+import { formatBytes } from "./fileHelpers";
+
+function resolveDocId(doc) {
+  return doc?.documentId || doc?._id || doc?.id || null;
+}
 
 const UploadPage = () => {
   const { showToast } = useToast();
@@ -46,7 +50,6 @@ const UploadPage = () => {
     fileInputRef,
     handleFileChange,
     clearSelectedFiles,
-    clearFileSelection,
     removeSelectedFile,
     onDragOver,
     onDragLeave,
@@ -80,6 +83,8 @@ const UploadPage = () => {
     setIsPreviewOpen,
   });
 
+  const hasActiveDocument = !!currentDoc;
+
   const handleUpload = async () => {
     const selected = files.length ? files : file ? [file] : [];
 
@@ -109,9 +114,6 @@ const UploadPage = () => {
       const data = await res.json();
 
       if (res.status === 409 && data.duplicate) {
-        clearInterval(interval);
-        setIsUploading(false);
-
         let message = data.message || "This file is already being processed.";
         if (data.existingName && data.processingTimeMinutes !== undefined) {
           message = `"${data.existingName}" is ${data.status} (${data.processingTimeMinutes} min). Please wait.`;
@@ -126,7 +128,7 @@ const UploadPage = () => {
             documentId: data.existingDocumentId,
             processingStatus: data.status,
           });
-          fetchHistory();
+          await fetchHistory();
         }
 
         return;
@@ -134,9 +136,7 @@ const UploadPage = () => {
 
       if (!res.ok) throw new Error(data.message || "Upload failed");
 
-      clearInterval(interval);
       setUploadProgress(100);
-      setIsUploading(false);
 
       if (useBatch) {
         const count = Array.isArray(data.items) ? data.items.length : selected.length;
@@ -150,10 +150,9 @@ const UploadPage = () => {
         }
 
         showToast?.(message, { type: "success" });
-        clearFileSelection();
       } else {
         const f0 = selected[0];
-        let message = `Uploaded ${sanitizeFilename(f0.name)}`;
+        let message = `Uploaded ${f0.name}`;
         if (data.converted) message += " (converted to PDF)";
 
         showToast?.(message, { type: "success" });
@@ -164,33 +163,39 @@ const UploadPage = () => {
 
         if (data.converted) {
           try {
-            const downloadRes = await downloadDocument(data.documentId);
-            if (downloadRes.ok) {
-              const blob = await downloadRes.blob();
-              const previewFile = new File([blob], currentDocData.name || "document.pdf", {
-                type: "application/pdf",
-              });
-              selectFile(previewFile);
-              setIsPreviewOpen(true);
-              showToast?.(`Displaying converted PDF: ${currentDocData.name}`, { type: "info" });
+            const uploadedDocId = resolveDocId(data) || resolveDocId(currentDocData);
+            if (!uploadedDocId) {
+              throw new Error("Missing document ID for converted PDF");
             }
+
+            const downloadRes = await downloadDocument(uploadedDocId);
+            const blob = await downloadRes.blob();
+            const previewFile = new File([blob], currentDocData.name || "document.pdf", {
+              type: "application/pdf",
+            });
+            selectFile(previewFile);
+            setIsPreviewOpen(true);
+            showToast?.(`Displaying converted PDF: ${currentDocData.name}`, { type: "info" });
           } catch (err) {
-            console.error("Error loading converted PDF:", err);
+            if (process.env.NODE_ENV !== "production") {
+              console.error("Error loading converted PDF:", err);
+            }
           }
         }
       }
 
-      clearFileSelection();
-      fetchHistory();
+      clearSelectedFiles();
+      await fetchHistory();
     } catch (err) {
+      showToast?.(err.message, { type: "error" });
+    } finally {
       clearInterval(interval);
       setIsUploading(false);
-      showToast?.(err.message, { type: "error" });
     }
   };
 
   return (
-    <div className={`upload-container-dark ${uploaded ? "three-cols" : "two-cols"}`}>
+    <div className={`upload-container-dark ${hasActiveDocument ? "three-cols" : "two-cols"}`}>
       <History
         history={history}
         isOpen={isHistoryOpen}
@@ -203,7 +208,7 @@ const UploadPage = () => {
       />
 
       <div className={`right-section ${isHistoryOpen ? "" : "full-width"}`}>
-        {!uploaded ? (
+        {!hasActiveDocument ? (
           <div className="upload-section">
             <h1 className="upload-title">📂 Upload Your Document</h1>
             <p className="upload-subtitle">
@@ -237,7 +242,7 @@ const UploadPage = () => {
               {files.length > 0 &&
                 (files.length === 1 ? (
                   <div className="file-info-simple">
-                    <span className="file-name">{sanitizeFilename(files[0].name)}</span>
+                    <span className="file-name">{files[0].name}</span>
                     <span className="file-size">{formatBytes(files[0].size)}</span>
                     <button
                       type="button"
@@ -254,7 +259,7 @@ const UploadPage = () => {
                       const key = `${f.name}|${f.size}|${f.lastModified}`;
                       return (
                         <div className="file-chip" key={key} title={f.name}>
-                          <span className="chip-name">{sanitizeFilename(f.name)}</span>
+                          <span className="chip-name">{f.name}</span>
                           <span className="chip-size">{formatBytes(f.size)}</span>
                           <button
                             type="button"
@@ -320,7 +325,7 @@ const UploadPage = () => {
               setPreviewWidth={setPreviewWidth}
               setLastPreviewWidth={setLastPreviewWidth}
               setIsPreviewOpen={setIsPreviewOpen}
-              documentId={currentDoc?.documentId || currentDoc?._id || currentDoc?.id}
+              documentId={resolveDocId(currentDoc)}
               filename={currentDoc?.name}
               onTextSaved={fetchHistory}
               onSummarizeSelection={summarizeSelectionHandler}
@@ -334,7 +339,7 @@ const UploadPage = () => {
               sendMessage={sendMessageHandler}
               clearChat={clearChat}
               isTyping={isTyping}
-              documentId={currentDoc?.documentId || currentDoc?._id || currentDoc?.id}
+              documentId={resolveDocId(currentDoc)}
             />
           </div>
         )}

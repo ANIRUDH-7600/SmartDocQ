@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   appendChatMessages,
   deleteChatHistory,
@@ -6,22 +6,24 @@ import {
 } from "../../../Services/ChatService";
 import { summarizeSelection } from "../../../Services/SummarizeService";
 
+function resolveDocId(doc) {
+  return doc?.documentId || doc?._id || doc?.id || null;
+}
+
 export default function useUploadChat(showToast, currentDoc) {
   const [chat, setChat] = useState([]);
   const [chatInput, setChatInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const latestRequestRef = useRef(0);
 
   const sendMessageHandler = async () => {
     const text = chatInput.trim();
     if (!text || isTyping) return;
 
-    const docId = currentDoc?.documentId || currentDoc?._id || currentDoc?.id;
+    const docId = resolveDocId(currentDoc);
 
     if (!docId) {
-      setChat((prev) => [
-        ...prev,
-        { role: "assistant", text: "⚠️ No document selected", at: Date.now() },
-      ]);
+      showToast?.("No document selected", { type: "warning" });
       return;
     }
 
@@ -29,43 +31,59 @@ export default function useUploadChat(showToast, currentDoc) {
     setChat((prev) => [...prev, { role: "user", text, at: now }]);
     setChatInput("");
     setIsTyping(true);
+    const requestId = ++latestRequestRef.current;
 
     try {
-      const res = await sendChatMessage(docId, text);
-      const data = await res.json().catch(() => ({}));
+      const data = await sendChatMessage(docId, text);
       const appended = Array.isArray(data.appended) ? data.appended : [];
+
+      if (latestRequestRef.current !== requestId || resolveDocId(currentDoc) !== docId) {
+        return;
+      }
 
       if (appended.length) {
         setChat((prev) => [...prev, ...appended.filter((m) => m?.role === "assistant")]);
       }
     } catch (err) {
+      if (latestRequestRef.current !== requestId || resolveDocId(currentDoc) !== docId) {
+        return;
+      }
+
       setChat((prev) => [
         ...prev,
         { role: "assistant", text: "⚠️ Error: " + err.message, at: Date.now() },
       ]);
     } finally {
-      setIsTyping(false);
+      if (latestRequestRef.current === requestId) {
+        setIsTyping(false);
+      }
     }
   };
 
   const clearChat = async () => {
-    const docId = currentDoc?.documentId || currentDoc?._id || currentDoc?.id;
-    setChat([]);
+    const docId = resolveDocId(currentDoc);
 
-    if (docId) {
-      try {
+    try {
+      if (docId) {
         await deleteChatHistory(docId);
-      } catch (err) {
-        console.error("Failed to delete chat from Atlas:", err);
+      }
+      setChat([]);
+    } catch (err) {
+      showToast?.(err.message || "Failed to clear chat", { type: "error" });
+
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Failed to clear chat history:", err);
       }
     }
   };
 
   const summarizeSelectionHandler = async (selectedText) => {
-    try {
-      const docId = currentDoc?.documentId || currentDoc?._id || currentDoc?.id;
+    let requestId = 0;
+    const docId = resolveDocId(currentDoc);
+    const cleanText = String(selectedText || "").trim();
 
-      if (!selectedText) {
+    try {
+      if (!cleanText) {
         showToast?.(
           "Select text in the page to summarize. For PDFs opened in the built-in viewer, selection may not be accessible—copy the text or use text/Word preview.",
           { type: "info" }
@@ -73,19 +91,20 @@ export default function useUploadChat(showToast, currentDoc) {
         return;
       }
 
-      const userMsgText = `Summarize the following selection:\n\n"""\n${selectedText}\n"""`;
+      const userMsgText = `Summarize the following selection:\n\n"""\n${cleanText}\n"""`;
       const userAt = Date.now();
 
       setChat((prev) => [...prev, { role: "user", text: userMsgText, at: userAt }]);
       setIsTyping(true);
+      requestId = ++latestRequestRef.current;
 
-      const res = await summarizeSelection(selectedText, docId);
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) throw new Error(data.error || "Summarization failed");
-
+      const data = await summarizeSelection(cleanText, docId);
       const summary = data?.summary || "No summary produced.";
       const asstAt = Date.now();
+
+      if (latestRequestRef.current !== requestId || resolveDocId(currentDoc) !== docId) {
+        return;
+      }
 
       setChat((prev) => [...prev, { role: "assistant", text: summary, at: asstAt }]);
 
@@ -96,16 +115,26 @@ export default function useUploadChat(showToast, currentDoc) {
             { role: "assistant", text: summary, at: asstAt, rating: "none" },
           ]);
         } catch (persistErr) {
-          console.warn("Failed to persist summarize messages:", persistErr);
+          showToast?.("Failed to save summary to chat history", { type: "error" });
+
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("Failed to persist summarize messages:", persistErr);
+          }
         }
       }
     } catch (e) {
+      if (latestRequestRef.current !== requestId || resolveDocId(currentDoc) !== docId) {
+        return;
+      }
+
       setChat((prev) => [
         ...prev,
         { role: "assistant", text: `⚠️ ${e.message || "Summarization failed"}`, at: Date.now() },
       ]);
     } finally {
-      setIsTyping(false);
+      if (latestRequestRef.current === requestId) {
+        setIsTyping(false);
+      }
     }
   };
 
@@ -115,7 +144,6 @@ export default function useUploadChat(showToast, currentDoc) {
     chatInput,
     setChatInput,
     isTyping,
-    setIsTyping,
     sendMessageHandler,
     clearChat,
     summarizeSelectionHandler,
