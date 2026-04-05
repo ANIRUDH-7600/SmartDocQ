@@ -10,8 +10,39 @@ export default function useUploadSelection(showToast) {
   const [files, setFiles] = useState([]);
   const [fileUrl, setFileUrl] = useState("");
 
-  const isOverDrop = useRef(false);
+  const [isOverDrop, setIsOverDrop] = useState(false);
   const fileInputRef = useRef(null);
+  const managedObjectUrlRef = useRef("");
+
+  const selectFile = (nextFile) => {
+    if (managedObjectUrlRef.current) {
+      try {
+        if (managedObjectUrlRef.current.startsWith("blob:")) {
+          URL.revokeObjectURL(managedObjectUrlRef.current);
+        }
+      } catch {
+        // ignore revoke errors
+      }
+      managedObjectUrlRef.current = "";
+    }
+
+    let nextUrl = "";
+    if (
+      nextFile &&
+      typeof File !== "undefined" &&
+      nextFile instanceof File
+    ) {
+      try {
+        nextUrl = URL.createObjectURL(nextFile);
+        managedObjectUrlRef.current = nextUrl;
+      } catch {
+        // ignore createObjectURL errors
+      }
+    }
+
+    setFile(nextFile || null);
+    setFileUrl(nextUrl);
+  };
 
   const validateAndSetFiles = (incoming) => {
     const { accepted, rejected } = validateFiles(incoming, SUPPORTED_FILE_TYPES, 25);
@@ -38,16 +69,6 @@ export default function useUploadSelection(showToast) {
         }
       }
 
-      if (!file && uniq.length) {
-        const first = uniq[0];
-        setFile(first);
-        const url = URL.createObjectURL(first);
-        setFileUrl((prevUrl) => {
-          if (prevUrl) URL.revokeObjectURL(prevUrl);
-          return url;
-        });
-      }
-
       return uniq;
     });
   };
@@ -60,11 +81,7 @@ export default function useUploadSelection(showToast) {
 
   const clearSelectedFiles = () => {
     setFiles([]);
-    setFile(null);
-    setFileUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return "";
-    });
+    selectFile(null);
 
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -79,8 +96,7 @@ export default function useUploadSelection(showToast) {
       const next = prev.filter((f) => buildFileKey(f) !== targetKey);
 
       if (file && buildFileKey(file) === targetKey) {
-        if (next.length) setFile(next[0]);
-        else setFile(null);
+        selectFile(next[0] || null);
       }
 
       return next;
@@ -89,36 +105,53 @@ export default function useUploadSelection(showToast) {
 
   const onDragOver = (e) => {
     e.preventDefault();
-    isOverDrop.current = true;
+    setIsOverDrop(true);
   };
 
   const onDragLeave = () => {
-    isOverDrop.current = false;
+    setIsOverDrop(false);
   };
 
   const onDrop = (e) => {
     e.preventDefault();
-    isOverDrop.current = false;
+    setIsOverDrop(false);
     const list = Array.from(e.dataTransfer.files || []);
     if (list.length) validateAndSetFiles(list);
   };
 
   useEffect(() => {
+    if (!file && files.length > 0) {
+      const first = files[0];
+      if (
+        first &&
+        typeof File !== "undefined" &&
+        first instanceof File
+      ) {
+        selectFile(first);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [file, files]);
+
+  useEffect(() => {
     return () => {
-      setFileUrl((prev) => {
-        if (prev) URL.revokeObjectURL(prev);
-        return "";
-      });
+      if (managedObjectUrlRef.current) {
+        try {
+          if (managedObjectUrlRef.current.startsWith("blob:")) {
+            URL.revokeObjectURL(managedObjectUrlRef.current);
+          }
+        } catch {
+          // ignore revoke errors
+        }
+        managedObjectUrlRef.current = "";
+      }
     };
   }, []);
 
   return {
     file,
-    setFile,
     files,
-    setFiles,
     fileUrl,
-    setFileUrl,
     isOverDrop,
     fileInputRef,
     handleFileChange,
@@ -129,5 +162,6 @@ export default function useUploadSelection(showToast) {
     onDragOver,
     onDragLeave,
     onDrop,
+    selectFile,
   };
 }

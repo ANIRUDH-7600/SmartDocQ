@@ -16,8 +16,7 @@ export default function useUploadHistory(showToast, setters) {
   const {
     setCurrentDoc,
     setUploaded,
-    setFile,
-    setFileUrl,
+    selectFile,
     setChat,
     setIsPreviewOpen,
   } = setters;
@@ -102,8 +101,7 @@ export default function useUploadHistory(showToast, setters) {
       setCurrentDoc(item);
       setUploaded(true);
       setIsPreviewOpen(true);
-      setFile({ name: item.name, type: "loading" });
-      setFileUrl("");
+      selectFile({ name: item.name, type: "loading" });
 
       const isOriginallyWord =
         item.originalType === "application/msword" ||
@@ -116,9 +114,10 @@ export default function useUploadHistory(showToast, setters) {
         if (!downloadRes.ok) throw new Error("Failed to load PDF");
 
         const blob = await downloadRes.blob();
-        const url = URL.createObjectURL(blob);
-        setFile({ name: item.name, type: "application/pdf" });
-        setFileUrl(url);
+        const f = new File([blob], item.name || "document.pdf", {
+          type: "application/pdf",
+        });
+        selectFile(f);
 
         if (isConvertedToPdf) {
           showToast?.(`Showing converted PDF: ${item.name}`, { type: "info" });
@@ -135,11 +134,11 @@ export default function useUploadHistory(showToast, setters) {
             const previewRes = await fetch(previewUrl);
 
             if (previewRes.ok) {
-              setFileUrl((prev) => {
-                if (prev) URL.revokeObjectURL(prev);
-                return previewUrl;
+              const blob = await previewRes.blob();
+              const f = new File([blob], item.name || "document.pdf", {
+                type: "application/pdf",
               });
-              setFile({ name: item.name, type: "application/pdf" });
+              selectFile(f);
             } else {
               throw new Error("Preview not available");
             }
@@ -148,32 +147,22 @@ export default function useUploadHistory(showToast, setters) {
             if (!res.ok) throw new Error("Failed to download document");
 
             const blob = await res.blob();
-            const url = URL.createObjectURL(blob);
             const f = new File([blob], item.name || "document", {
               type: item.type || blob.type || "application/octet-stream",
             });
 
-            setFileUrl((prev) => {
-              if (prev) URL.revokeObjectURL(prev);
-              return url;
-            });
-            setFile(f);
+            selectFile(f);
           }
         } else {
           const res = await downloadDocument(item.documentId || item.id);
           if (!res.ok) throw new Error("Failed to download document");
 
           const blob = await res.blob();
-          const url = URL.createObjectURL(blob);
           const f = new File([blob], item.name || "document", {
             type: item.type || blob.type || "application/octet-stream",
           });
 
-          setFileUrl((prev) => {
-            if (prev) URL.revokeObjectURL(prev);
-            return url;
-          });
-          setFile(f);
+          selectFile(f);
         }
       }
 

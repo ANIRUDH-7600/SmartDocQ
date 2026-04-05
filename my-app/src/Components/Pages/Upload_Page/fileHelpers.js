@@ -6,7 +6,7 @@ export const SUPPORTED_FILE_TYPES = [
 ];
 
 export function sanitizeFilename(filename = "") {
-  return filename
+  return String(filename)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -16,35 +16,50 @@ export function sanitizeFilename(filename = "") {
 }
 
 export function validateFilename(filename = "") {
+  const trimmed = String(filename).trim();
   const invalidChars = /[<>:"/\\|?*]/;
-  if (invalidChars.test(filename)) return false;
-  if (filename.length > 255) return false;
+
+  if (!trimmed) return false;
+  if (trimmed === "." || trimmed === "..") return false;
+  if (invalidChars.test(trimmed)) return false;
+  if (trimmed.length > 255) return false;
+
   return true;
 }
 
 export function formatBytes(bytes) {
-  if (!bytes) return "0 B";
-  const sizes = ["B", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-  return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
+  const value = Number(bytes);
+
+  if (!Number.isFinite(value) || value <= 0) return "0 B";
+
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.min(Math.floor(Math.log(value) / Math.log(1024)), sizes.length - 1);
+
+  return `${(value / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
 }
 
 export function buildFileKey(file) {
+  if (!file) return "";
   return `${file.name}|${file.size}|${file.lastModified}`;
 }
 
 export function validateFiles(incoming, supportedTypes = SUPPORTED_FILE_TYPES, maxSizeMb = 25) {
+  const files = Array.isArray(incoming) ? incoming : [];
   const accepted = [];
   const rejected = [];
+  const maxBytes = maxSizeMb * 1024 * 1024;
+  const sizeLimitLabel = formatBytes(maxBytes);
 
-  for (const f of incoming) {
+  for (const f of files) {
+    if (!f) continue;
+
     if (!supportedTypes.includes(f.type)) {
       rejected.push(`${f.name}: unsupported type`);
       continue;
     }
 
-    if (f.size > maxSizeMb * 1024 * 1024) {
-      rejected.push(`${f.name}: too large (> ${maxSizeMb}MB)`);
+    if (f.size > maxBytes) {
+      rejected.push(`${f.name}: too large (> ${sizeLimitLabel})`);
       continue;
     }
 

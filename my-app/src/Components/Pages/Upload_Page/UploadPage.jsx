@@ -23,12 +23,11 @@ import { sanitizeFilename, formatBytes } from "./fileHelpers";
 const UploadPage = () => {
   const { showToast } = useToast();
   const [currentDoc, setCurrentDoc] = useState(null);
+  const [uploaded, setUploaded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const {
-    uploaded,
-    setUploaded,
     isHistoryOpen,
     setIsHistoryOpen,
     isPreviewOpen,
@@ -41,10 +40,8 @@ const UploadPage = () => {
 
   const {
     file,
-    setFile,
     files,
     fileUrl,
-    setFileUrl,
     isOverDrop,
     fileInputRef,
     handleFileChange,
@@ -54,6 +51,7 @@ const UploadPage = () => {
     onDragOver,
     onDragLeave,
     onDrop,
+    selectFile,
   } = useUploadSelection(showToast);
 
   const {
@@ -77,8 +75,7 @@ const UploadPage = () => {
   } = useUploadHistory(showToast, {
     setCurrentDoc,
     setUploaded,
-    setFile,
-    setFileUrl,
+    selectFile,
     setChat,
     setIsPreviewOpen,
   });
@@ -170,9 +167,10 @@ const UploadPage = () => {
             const downloadRes = await downloadDocument(data.documentId);
             if (downloadRes.ok) {
               const blob = await downloadRes.blob();
-              const url = URL.createObjectURL(blob);
-              setFile({ name: currentDocData.name, type: "application/pdf" });
-              setFileUrl(url);
+              const previewFile = new File([blob], currentDocData.name || "document.pdf", {
+                type: "application/pdf",
+              });
+              selectFile(previewFile);
               setIsPreviewOpen(true);
               showToast?.(`Displaying converted PDF: ${currentDocData.name}`, { type: "info" });
             }
@@ -213,7 +211,7 @@ const UploadPage = () => {
             </p>
 
             <div
-              className={`upload-box ${isOverDrop.current ? "drag-over" : ""}`}
+              className={`upload-box ${isOverDrop ? "drag-over" : ""}`}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
               onDrop={onDrop}
