@@ -267,7 +267,7 @@ Refer to `DEPLOYMENT_CHECKLIST.md` for detailed deployment instructions.
 - Cookies configured with `SameSite` and `Secure` flags in production
 - Client-side user data validated with `safeParseUser()` to prevent corrupted/malicious data
 - JWT tokens expire after 1 hour with automatic cleanup on logout
-- Sensitive data detection runs before document processing
+- **Sensitive Data Detection**: Advanced pattern-based detection with validation (e.g., Luhn algorithm for credit cards) to reduce false positives and improve accuracy
 - Content moderation filters inappropriate content
 - Shared chat links use high-entropy IDs, expire (~24h), and are rate-limited on the public endpoints
 - CORS configured with credentials support for specific allowed origins
