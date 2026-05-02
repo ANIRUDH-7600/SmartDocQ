@@ -1,0 +1,53 @@
+from dotenv import load_dotenv
+load_dotenv()
+
+import os
+import re
+
+# ====== FLASK APP CONFIG ======
+FRONTEND_ORIGINS = os.environ.get("FRONTEND_ORIGINS", "http://localhost:3000")
+MAX_CONTENT_LENGTH = 25 * 1024 * 1024
+
+# ====== CORS ORIGINS PROCESSING ======
+def build_allowed_origins(origins_str: str) -> list:
+    try:
+        raw = [o.strip() for o in origins_str.split(",") if o.strip()]
+    except Exception:
+        return ["http://localhost:3000"]
+
+    processed = []
+    for entry in raw:
+        if entry.startswith("*."):
+            domain = re.escape(entry[2:])
+            processed.append(fr"https?://.*\.{domain}$")
+        elif entry.startswith("http://*.") or entry.startswith("https://*."):
+            scheme, rest = entry.split("://", 1)
+            domain = rest[2:]
+            domain_escaped = re.escape(domain)
+            processed.append(fr"{scheme}://.*\.{domain_escaped}$")
+        else:
+            processed.append(entry)
+    return processed
+
+ALLOWED_ORIGINS = build_allowed_origins(FRONTEND_ORIGINS)
+
+# ====== API / SERVICE CONFIG ======
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+NODE_BASE_URL = os.environ.get("NODE_BASE_URL", "http://localhost:5000")
+SERVICE_TOKEN = os.environ.get("SERVICE_TOKEN", "smartdoc-service-token")
+NODE_FETCH_TIMEOUT = int(os.environ.get("NODE_FETCH_TIMEOUT", "45"))
+CHUNK_UPSERT_URL = os.environ.get("CHUNK_UPSERT_URL", f"{NODE_BASE_URL}/api/search/internal/chunks/upsert")
+
+# ====== MODEL CONFIG ======
+TEXT_MODEL = os.environ.get("TEXT_MODEL", "models/gemini-2.5-flash")
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "models/gemini-embedding-2")
+
+# ====== CHROMA CONFIG ======
+CHROMA_DB_PATH = os.environ.get("CHROMA_DB_PATH", os.path.join(os.getcwd(), "chroma_db"))
+
+# ====== MISC ======
+URL_REGEX = re.compile(
+    r"(https?://[^\s]+|www\.[^\s]+|ftp://[^\s]+|mailto:[^\s]+|t\.me/[^\s]+|discord\.gg/[^\s]+)",
+    re.IGNORECASE
+)
+NOISE_DISTANCE_THRESHOLD = 0.6
