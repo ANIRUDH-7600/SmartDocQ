@@ -24,8 +24,8 @@ logs/
 Thumbs.db
 
 # Local DB caches
-**/chroma_db/
-**/pdf_cache/
+chroma_db/
+pdf_cache/
 
 # Coverage
 coverage/
