@@ -26,6 +26,7 @@ Thumbs.db
 # Local DB caches
 chroma_db/
 pdf_cache/
+*.sqlite3
 
 # Coverage
 coverage/
