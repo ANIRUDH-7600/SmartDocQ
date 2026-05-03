@@ -1,43 +1,55 @@
 import os
 import chromadb
+import logging
 from config import CHROMA_DB_PATH
 
+logger = logging.getLogger(__name__)
 
-def _ensure_dir(p: str) -> str:
+def _ensure_dir(p: str) -> bool:
     try:
         os.makedirs(p, exist_ok=True)
-        return p
+        return True
     except Exception as e:
-        print("[Chroma] Failed to create directory", p, "=>", e)
-        return ""
+        logger.warning("Failed to create directory %s: %s", p, e)
+        return False
+
+
+def _try_persistent(path: str):
+    try:
+        cli = chromadb.PersistentClient(path=path)
+        logger.info("Chroma persistent path: %s", path)
+        return cli
+    except Exception as e:
+        logger.warning("PersistentClient failed for %s: %s", path, e)
+        return None
 
 
 def init_chroma_client():
     env_path = os.path.abspath(CHROMA_DB_PATH)
-    if _ensure_dir(env_path):
-        try:
-            cli = chromadb.PersistentClient(path=env_path)
-            print(f"[Chroma] Persistent path: {env_path}")
+
+    if env_path and _ensure_dir(env_path):
+        cli = _try_persistent(env_path)
+        if cli:
             return cli
-        except Exception as e:
-            print("[Chroma] PersistentClient failed for", env_path, "=>", e)
 
     default_path = os.path.abspath(os.path.join(os.getcwd(), "chroma_db"))
-    if _ensure_dir(default_path):
-        try:
-            cli = chromadb.PersistentClient(path=default_path)
-            print(f"[Chroma] Fallback persistent path: {default_path}")
-            return cli
-        except Exception as e:
-            print("[Chroma] PersistentClient failed for default path", default_path, "=>", e)
 
+    if _ensure_dir(default_path):
+        cli = _try_persistent(default_path)
+        if cli:
+            return cli
+
+    logger.warning("Using EphemeralClient (no persistence)")
     try:
-        cli = chromadb.EphemeralClient()
-        print("[Chroma] Using EphemeralClient (no persistence)")
-        return cli
-    except Exception as e:
-        raise e
+        return chromadb.EphemeralClient()
+    except Exception:
+        logger.error("Failed to initialize Chroma client")
+        raise
 
 
 chroma_client = init_chroma_client()
-collection = chroma_client.get_or_create_collection("documents")
+
+collection = chroma_client.get_or_create_collection(
+    name="documents",
+    metadata={"hnsw:space": "cosine"}
+)
