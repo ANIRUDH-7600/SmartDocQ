@@ -141,8 +141,11 @@ export default function LandingPage({ onRevealStart }) {
       document.removeEventListener("mousemove", onMove);
       window.removeEventListener("resize", onResize);
 
-      // ── Render one final static frame as frozen bg ──
-      renderer.render(scene, camera);
+      // ── Hide the canvas container ──
+      const canvasContainer = document.getElementById("canvas-container");
+      if (canvasContainer) {
+        canvasContainer.style.display = "none";
+      }
     }
 
     function revealMain() {

@@ -102,6 +102,20 @@ function AppContent() {
 
   const isResetRoute = location.pathname === '/reset-password';
   const shouldShowLanding = !isResetRoute;
+  const isHomePage = location.pathname === '/';
+
+  // Apply background only after opening animation completes on home page
+  useEffect(() => {
+    if (isHomePage && revealStarted) {
+      document.body.style.backgroundImage = 'url(/bg.png)';
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundAttachment = 'fixed';
+      document.body.style.backgroundRepeat = 'no-repeat';
+    } else {
+      document.body.style.backgroundImage = '';
+    }
+  }, [isHomePage, revealStarted]);
 
   useEffect(() => {
     const handleUnauthorized = () => {
