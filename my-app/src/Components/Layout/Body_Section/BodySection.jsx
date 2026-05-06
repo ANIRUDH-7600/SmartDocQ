@@ -1,5 +1,4 @@
 import "./BodySection.css";
-import ClickSpark from "../../Effects/ClickSpark";
 import HowItWorksSection from "./HowItWorksSection";
 
 /* ============================================================================
@@ -64,13 +63,7 @@ const PROCESS_CARDS = [
  * ============================================================================ */
 function BodySection() {
   return (
-    <ClickSpark
-      sparkColor="#fff"
-      sparkSize={10}
-      sparkRadius={15}
-      sparkCount={8}
-      duration={400}
-    >
+    <>
       <section className="body-section" aria-labelledby="process-heading">
         <h2 id="process-heading" className="sr-only">How SmartDocQ Works</h2>
         <div className="cards-grid" role="list" aria-label="SmartDocQ processing pipeline">
@@ -95,7 +88,7 @@ function BodySection() {
       </section>
 
       <HowItWorksSection />
-    </ClickSpark>
+    </>
   );
 }
 

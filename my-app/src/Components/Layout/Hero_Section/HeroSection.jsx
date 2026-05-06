@@ -5,7 +5,6 @@ import aiAnimation from "./assets/2.json";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useNavigate } from "react-router-dom";
-import ClickSpark from "../../Effects/ClickSpark";
 import FeatureCard from "./FeatureCard";
 import { FEATURES } from "./featuresData";
 
@@ -103,13 +102,7 @@ const HeroSection = () => {
   };
 
   return (
-    <ClickSpark
-      sparkColor="#fff"
-      sparkSize={10}
-      sparkRadius={15}
-      sparkCount={8}
-      duration={400}
-    >
+    <>
       <section className="hero-section" aria-labelledby="hero-heading">
         <div className="hero-container">
           <div className="hero-left">
@@ -144,8 +137,7 @@ const HeroSection = () => {
         </div>
         <h2 className="use-title">From Chaos to Clarity</h2>
       </section>
-
-    </ClickSpark>
+    </>
   );
 };
 

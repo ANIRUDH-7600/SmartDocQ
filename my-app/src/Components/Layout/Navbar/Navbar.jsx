@@ -4,7 +4,6 @@ import "./Navbar.css";
 import logo from "./assets/logo.png";
 import icon from "./assets/icon1.png";
 import { useToast } from "../../ToastContext";
-import ClickSpark from "../../Effects/ClickSpark";
 import { useAuth } from "./useAuth";
 import ProfileMenu from "./ProfileMenu";
 import NavDialogs from "./NavDialogs";
@@ -132,8 +131,7 @@ export default function Navbar() {
 
   return (
     <>
-      <ClickSpark sparkColor="#fff" sparkSize={10} sparkRadius={15} sparkCount={8} duration={400}>
-        <nav
+      <nav
           className={`navbar ${isUploadPage ? "upload-navbar" : ""}`}
           role="navigation"
           aria-label="Main navigation"
@@ -261,7 +259,6 @@ export default function Navbar() {
             <span aria-hidden="true" /><span aria-hidden="true" /><span aria-hidden="true" />
           </button>
         </nav>
-      </ClickSpark>
 
       {/* Mobile navigation bottom sheet */}
       <MobileSheet

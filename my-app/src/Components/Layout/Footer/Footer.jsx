@@ -2,7 +2,6 @@ import './Footer.css';
 import { FaGithub, FaDiscord } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 import { useLocation, Link } from 'react-router-dom';
-import ClickSpark from '../../Effects/ClickSpark';
 
 /* ============================================================================
  * CONSTANTS
@@ -19,12 +18,6 @@ const Footer = () => {
   const isSharePage = location.pathname.startsWith("/share/");
 
   return (
-  <ClickSpark
-    sparkColor="#fff"
-    sparkSize={10}
-    sparkRadius={15}
-    sparkCount={8}
-    duration={400}>
   <footer className={`footer ${isUploadPage ? 'upload-footer' : ''} ${(isHelpPage || isPrivacyPage || isTermsPage || isSharePage) ? 'footer--flush' : ''}`} role="contentinfo">
       <div className="footer-container">
         <div className="footer-main">
@@ -70,7 +63,6 @@ const Footer = () => {
         </div>
       </div>
     </footer>
-    </ClickSpark>
   );
 };
 
