@@ -16,7 +16,7 @@ from routes.ask_routes import ask_bp
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
-CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}})
+CORS(app, resources={r"/*": {"origins": ALLOWED_ORIGINS}}, supports_credentials=True)
 
 # ====== BLUEPRINTS ======
 app.register_blueprint(document_bp)
@@ -24,7 +24,7 @@ app.register_blueprint(ask_bp)
 
 # ====== EXTERNAL BLUEPRINTS (quiz, flashcard, summarize) ======
 try:
-    from quiz import quiz_bp, init_quiz
+    from features.quiz import quiz_bp, init_quiz
     from db.chroma import collection
     from indexing.indexer import has_index
     from services.retrieval_service import fetch_doc_from_node
@@ -32,23 +32,23 @@ try:
 
     init_quiz(collection, has_index, fetch_doc_from_node, extract_text_for_mimetype, TEXT_MODEL, genai)
     app.register_blueprint(quiz_bp)
-except Exception:
-    pass
+except Exception as e:
+    print("Quiz blueprint not loaded:", e)
 
 try:
-    from flashcard import flashcard_bp, init_flashcards
-    from db import collection
+    from features.flashcard import flashcard_bp, init_flashcards
+    from db.chroma import collection
     from indexing.indexer import has_index
     from services.retrieval_service import fetch_doc_from_node
     from utils.extraction import extract_text_for_mimetype
 
     init_flashcards(collection, has_index, fetch_doc_from_node, extract_text_for_mimetype, TEXT_MODEL, genai)
     app.register_blueprint(flashcard_bp)
-except Exception:
-    pass
+except Exception as e:
+    print("Flashcard blueprint not loaded:", e)
 
 try:
-    from summarize import init_summarizer, summarize_bp
+    from features.summarize import init_summarizer, summarize_bp
     app.register_blueprint(init_summarizer(TEXT_MODEL, genai))
 except Exception:
     pass

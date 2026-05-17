@@ -105,8 +105,12 @@ Final summary:
 def init_summarizer(TEXT_MODEL: str, genai_module):
     """Initialize routes with provided model config. Call from main.py after genai.configure()."""
 
-    @summarize_bp.route("/api/summarize", methods=["POST"])
+    @summarize_bp.route("/api/summarize", methods=["POST", "OPTIONS"])
     def summarize_endpoint():
+        # Handle CORS preflight explicitly (some environments disable automatic OPTIONS).
+        if request.method == "OPTIONS":
+            return ("", 204)
+
         body = request.get_json(silent=True) or {}
         selection_text = (body.get("selectionText") or body.get("text") or "").strip()
         # Optional context for audit and UI anchors

@@ -30,7 +30,7 @@ def index_from_atlas():
         if not ok:
             return jsonify({"error": filename}), 404
 
-        from utils.extraction import extract_text_for_mimetype
+        from backend.utils.extraction import extract_text_for_mimetype
         text = extract_text_for_mimetype(filename, mimetype, data)
         if not text:
             return jsonify({"error": "Unsupported or empty document"}), 400

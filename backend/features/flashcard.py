@@ -23,7 +23,7 @@ def init_flashcards(_collection, _has_index, _fetch_doc_from_node, _extract_text
 flashcard_bp = Blueprint("flashcard", __name__)
 
 
-@flashcard_bp.route("/api/document/generate-flashcards", methods=["POST"])
+@flashcard_bp.route("/api/document/generate-flashcards", methods=["POST", "OPTIONS"])
 def generate_flashcards():
     """Generate flashcards based on the uploaded document content.
     Request JSON:
@@ -31,6 +31,13 @@ def generate_flashcards():
       - num_cards: int (default 20)
     Response JSON: { success, flashcards: [ {front, back, category, difficulty}... ] } or { success: false, error }
     """
+    # Handle CORS preflight explicitly (some environments disable automatic OPTIONS).
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    if not all([collection, has_index, fetch_doc_from_node, extract_text_for_mimetype, TEXT_MODEL, genai]):
+        return jsonify({"success": False, "error": "Flashcard service not initialized"}), 500
+
     body = request.get_json(silent=True) or {}
     doc_id = (body.get("doc_id") or body.get("documentId") or "").strip()
     if not doc_id:
