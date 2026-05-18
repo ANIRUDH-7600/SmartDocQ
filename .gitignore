@@ -34,3 +34,9 @@ coverage/
 # IDE
 .vscode/
 .idea/
+
+# Test coverage artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+coverage.xml
