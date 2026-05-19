@@ -8,7 +8,7 @@ const { verifyToken, ensureActive } = require("./auth");
 // Internal upsert endpoint for Flask to persist chunk texts for keyword/metadata search
 router.post("/internal/chunks/upsert", async (req, res) => {
   try {
-    const svc = process.env.SERVICE_TOKEN || "smartdoc-service-token";
+    const svc = process.env.SERVICE_TOKEN;
     const provided = req.header("x-service-token");
     if (!provided || provided !== svc) {
       return res.status(401).json({ message: "Unauthorized" });

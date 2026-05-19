@@ -1,6 +1,7 @@
 import threading
 import requests
 import re
+import logging
 from datetime import datetime, timezone
 from db.chroma import collection
 from config import (
@@ -9,6 +10,7 @@ from config import (
     NODE_FETCH_TIMEOUT,
     EMBED_MODEL,
     INDEX_PIPELINE_VERSION,
+    INDEX_BATCH_SIZE,
 )
 from state.memory_store import consent_state
 from utils.extraction import (
@@ -20,6 +22,9 @@ from utils.extraction import (
 from utils.security import detect_sensitive
 from services.embedding_service import generate_embeddings
 from indexing.chunking import chunk_text, split_sheet_sections
+
+
+logger = logging.getLogger(__name__)
 
 
 # ===== CONFIG =====
@@ -48,7 +53,7 @@ def _delete_existing(doc_id: str):
         if ids:
             collection.delete(ids=ids)
     except Exception as e:
-        print(f"[Indexer] Warning: could not delete existing chunks for {doc_id}: {e}")
+        logger.warning("Could not delete existing chunks for %s: %s", doc_id, e)
 
 
 def _push_chunks_to_node(doc_id: str, filename: str, chunk_records: list):
@@ -63,9 +68,13 @@ def _push_chunks_to_node(doc_id: str, filename: str, chunk_records: list):
         headers = {"Content-Type": "application/json", "x-service-token": SERVICE_TOKEN}
         r = requests.post(CHUNK_UPSERT_URL, json=payload, headers=headers, timeout=NODE_FETCH_TIMEOUT)
         if r.status_code >= 300:
-            print("[Chunks Upsert] Node returned", r.status_code, r.text[:200])
+            logger.warning(
+                "Node chunk upsert returned %s: %s",
+                r.status_code,
+                (r.text or "")[:200],
+            )
     except Exception as e:
-        print("[Chunks Upsert] Error:", e)
+        logger.exception("Node chunk upsert failed: %s", e)
 
 
 def _flush_batch(collection_ref, batch_embeddings, batch_documents, batch_metadatas, batch_ids):
@@ -107,7 +116,7 @@ def _is_noise(c: str) -> bool:
 # ===== CORE INDEXING LOGIC =====
 
 def _index_sections(doc_id: str, filename: str, sections: list, chunk_records_out: list) -> int:
-    BATCH_SIZE = 64
+    BATCH_SIZE = INDEX_BATCH_SIZE
     batch_embeddings, batch_documents, batch_metadatas, batch_ids = [], [], [], []
     added = 0
     chunk_index = 0
@@ -208,6 +217,13 @@ def index_bytes(doc_id: str, filename: str, mimetype: str, data: bytes):
 
 
 def index_text(doc_id: str, filename: str, text: str):
+    """Low-level indexing helper.
+
+    Assumes the caller has already performed:
+    - sensitive data detection
+    - user consent checks
+    - authorization
+    """
     text = (text or "").strip()
     if not text:
         return False, 0
@@ -256,7 +272,7 @@ def _background_index(doc_id: str):
         index_bytes(doc_id, filename, mimetype, data_bytes)
 
     except Exception as e:
-        print(f"[Indexer] Background indexing failed for {doc_id}: {e}")
+        logger.exception("Background indexing failed for %s: %s", doc_id, e)
 
     finally:
         with _indexing_lock:

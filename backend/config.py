@@ -34,7 +34,9 @@ ALLOWED_ORIGINS = build_allowed_origins(FRONTEND_ORIGINS)
 # ====== API / SERVICE CONFIG ======
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 NODE_BASE_URL = os.environ.get("NODE_BASE_URL", "http://localhost:5000")
-SERVICE_TOKEN = os.environ.get("SERVICE_TOKEN", "smartdoc-service-token")
+SERVICE_TOKEN = os.environ.get("SERVICE_TOKEN")
+if not SERVICE_TOKEN:
+    raise ValueError("SERVICE_TOKEN environment variable is required")
 NODE_FETCH_TIMEOUT = int(os.environ.get("NODE_FETCH_TIMEOUT", "45"))
 CHUNK_UPSERT_URL = os.environ.get("CHUNK_UPSERT_URL", f"{NODE_BASE_URL}/api/search/internal/chunks/upsert")
 
@@ -46,6 +48,10 @@ EMBED_MODEL = os.environ.get("EMBED_MODEL", "models/gemini-embedding-2")
 # Bump this when you make changes that should force reindexing even if the
 # embedding model stays the same (e.g., new chunking strategy, new cleaners).
 INDEX_PIPELINE_VERSION = os.environ.get("INDEX_PIPELINE_VERSION", "1")
+
+# Batch size used by the indexer when upserting chunks into Chroma.
+# Can be tuned without code changes.
+INDEX_BATCH_SIZE = int(os.environ.get("INDEX_BATCH_SIZE", "64"))
 
 # ====== CHROMA CONFIG ======
 CHROMA_DB_PATH = os.environ.get("CHROMA_DB_PATH", os.path.join(os.getcwd(), "chroma_db"))

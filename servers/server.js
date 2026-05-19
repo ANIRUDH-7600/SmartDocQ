@@ -12,6 +12,12 @@ const client = require("prom-client");
 const logger = require("./lib/logger");
 const dns = require("dns");
 
+// ---- Required server-to-server secret ----
+// Used to authorize internal requests from the Flask service.
+if (!process.env.SERVICE_TOKEN) {
+  throw new Error("SERVICE_TOKEN environment variable is required");
+}
+
 const authRoutes = require("./routes/auth");
 const documentRoutes = require("./routes/document");
 const chatRoutes = require("./routes/chat");

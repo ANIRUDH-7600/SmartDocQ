@@ -40,3 +40,7 @@ coverage/
 htmlcov/
 .pytest_cache/
 coverage.xml
+
+# Python virtual environments
+venv/
+.venv/

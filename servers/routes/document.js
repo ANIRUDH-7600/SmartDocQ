@@ -354,7 +354,7 @@ router.post("/:id/unpin", verifyToken, ensureActive, async (req, res) => {
 router.get("/:id/download", async (req, res) => {
   try {
     // Allow service token for server-to-server access
-  const svc = process.env.SERVICE_TOKEN || "smartdoc-service-token";
+  const svc = process.env.SERVICE_TOKEN;
   const provided = req.header("x-service-token");
     let userId = null;
     if (provided && svc && provided === svc) {
@@ -547,7 +547,7 @@ router.post('/:id/consent', verifyToken, ensureActive, async (req, res) => {
 // ---- Internal metadata (Flask) ----
 router.get('/:id/_meta', async (req, res) => {
   try {
-    const svc = process.env.SERVICE_TOKEN || 'smartdoc-service-token';
+    const svc = process.env.SERVICE_TOKEN;
     const provided = req.header('x-service-token');
     if (!provided || provided !== svc) return res.status(403).json({ message: 'Forbidden' });
     const doc = await Document.findById(req.params.id).select('sensitiveFound consentConfirmed sensitiveSummary processingStatus');
