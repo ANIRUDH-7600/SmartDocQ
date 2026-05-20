@@ -59,6 +59,94 @@ def test_embedding_model_matches(monkeypatch):
     assert status.needs_reindex is False
     assert status.reason == "ok"
     assert status.stored_embedding_model == EMBED_MODEL
+    assert status.stored_file_hash is None
+
+
+def test_file_hash_matches_ok(monkeypatch):
+    """If current_file_hash is provided and matches stored file_hash, status is OK."""
+
+    monkeypatch.setattr(
+        "services.vector_versioning._get_one_chunk_metadata",
+        lambda doc_id: (
+            True,
+            {
+                "embedding_model": EMBED_MODEL,
+                "pipeline_version": INDEX_PIPELINE_VERSION,
+                "file_hash": "abc123",
+            },
+        ),
+    )
+
+    status = get_reindex_status("doc1", current_file_hash="abc123")
+
+    assert status.needs_reindex is False
+    assert status.reason == "ok"
+    assert status.stored_file_hash == "abc123"
+
+
+def test_missing_file_hash_metadata_triggers_reindex_when_current_hash_provided(monkeypatch):
+    """If current_file_hash is provided but stored metadata lacks file_hash => reindex."""
+
+    monkeypatch.setattr(
+        "services.vector_versioning._get_one_chunk_metadata",
+        lambda doc_id: (
+            True,
+            {
+                "embedding_model": EMBED_MODEL,
+                "pipeline_version": INDEX_PIPELINE_VERSION,
+                # no file_hash
+            },
+        ),
+    )
+
+    status = get_reindex_status("doc1", current_file_hash="abc123")
+
+    assert status.needs_reindex is True
+    assert status.reason == "missing_file_hash_metadata"
+    assert status.stored_file_hash is None
+
+
+def test_content_hash_mismatch_triggers_reindex(monkeypatch):
+    """If stored file_hash differs from current_file_hash => reindex."""
+
+    monkeypatch.setattr(
+        "services.vector_versioning._get_one_chunk_metadata",
+        lambda doc_id: (
+            True,
+            {
+                "embedding_model": EMBED_MODEL,
+                "pipeline_version": INDEX_PIPELINE_VERSION,
+                "file_hash": "oldhash",
+            },
+        ),
+    )
+
+    status = get_reindex_status("doc1", current_file_hash="newhash")
+
+    assert status.needs_reindex is True
+    assert status.reason == "content_hash_mismatch"
+    assert status.stored_file_hash == "oldhash"
+
+
+def test_current_file_hash_none_preserves_backward_compatibility(monkeypatch):
+    """If current_file_hash is None, file_hash checks are skipped."""
+
+    monkeypatch.setattr(
+        "services.vector_versioning._get_one_chunk_metadata",
+        lambda doc_id: (
+            True,
+            {
+                "embedding_model": EMBED_MODEL,
+                "pipeline_version": INDEX_PIPELINE_VERSION,
+                # no file_hash
+            },
+        ),
+    )
+
+    status = get_reindex_status("doc1", current_file_hash=None)
+
+    assert status.needs_reindex is False
+    assert status.reason == "ok"
 
 
 def test_embedding_model_mismatch(monkeypatch):
@@ -79,6 +167,7 @@ def test_embedding_model_mismatch(monkeypatch):
     assert status.needs_reindex is True
     assert status.reason == "model_mismatch"
     assert status.stored_embedding_model == "old-embedding-model"
+    assert status.stored_file_hash is None
 
 
 def test_pipeline_version_mismatch(monkeypatch):

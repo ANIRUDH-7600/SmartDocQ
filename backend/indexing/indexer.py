@@ -2,6 +2,7 @@ import threading
 import requests
 import re
 import logging
+import hashlib
 from datetime import datetime, timezone
 from db.chroma import collection
 from config import (
@@ -130,7 +131,13 @@ def _is_noise(c: str) -> bool:
 
 # ===== CORE INDEXING LOGIC =====
 
-def _index_sections(doc_id: str, filename: str, sections: list, chunk_records_out: list) -> int:
+def _index_sections(
+    doc_id: str,
+    filename: str,
+    sections: list,
+    chunk_records_out: list,
+    file_hash: str | None = None,
+) -> int:
     BATCH_SIZE = INDEX_BATCH_SIZE
     batch_embeddings, batch_documents, batch_metadatas, batch_ids = [], [], [], []
     added = 0
@@ -180,6 +187,9 @@ def _index_sections(doc_id: str, filename: str, sections: list, chunk_records_ou
                 # Allows reindexing when pipeline changes (chunking/cleaning/etc.).
                 "pipeline_version": INDEX_PIPELINE_VERSION,
             }
+
+            if file_hash:
+                meta["file_hash"] = file_hash
             if sheet_name:
                 meta["sheet"] = sheet_name
 
@@ -208,7 +218,13 @@ def _index_sections(doc_id: str, filename: str, sections: list, chunk_records_ou
 
 # ===== PUBLIC INDEX FUNCTIONS =====
 
-def index_bytes(doc_id: str, filename: str, mimetype: str, data: bytes):
+def index_bytes(
+    doc_id: str,
+    filename: str,
+    mimetype: str,
+    data: bytes,
+    file_hash: str | None = None,
+):
     ext = (filename.rsplit(".", 1)[-1].lower() if "." in filename else "")
 
     if mimetype == "application/pdf" or ext == "pdf":
@@ -227,18 +243,25 @@ def index_bytes(doc_id: str, filename: str, mimetype: str, data: bytes):
     if not text:
         return False, 0
 
+    # Prefer Node-provided hash (sha256 of stored bytes). If absent, compute.
+    if file_hash is None and data:
+        try:
+            file_hash = hashlib.sha256(data).hexdigest()
+        except Exception:
+            file_hash = None
+
     _delete_existing(doc_id)
 
     sections = split_sheet_sections(text)
     chunk_records = []
 
-    added = _index_sections(doc_id, filename, sections, chunk_records)
+    added = _index_sections(doc_id, filename, sections, chunk_records, file_hash=file_hash)
 
     _push_chunks_to_node(doc_id, filename, chunk_records)
     return True, added
 
 
-def index_text(doc_id: str, filename: str, text: str):
+def index_text(doc_id: str, filename: str, text: str, file_hash: str | None = None):
     """Low-level indexing helper.
 
     Assumes the caller has already performed:
@@ -257,7 +280,7 @@ def index_text(doc_id: str, filename: str, text: str):
     sections = split_sheet_sections(text)
     chunk_records = []
 
-    added = _index_sections(doc_id, filename, sections, chunk_records)
+    added = _index_sections(doc_id, filename, sections, chunk_records, file_hash=file_hash)
 
     _push_chunks_to_node(doc_id, filename, chunk_records)
     return True, added
@@ -266,7 +289,7 @@ def index_text(doc_id: str, filename: str, text: str):
 # ===== BACKGROUND INDEXING =====
 
 def _background_index(doc_id: str):
-    from services.retrieval_service import fetch_doc_from_node
+    from services.retrieval_service import fetch_doc_from_node, fetch_doc_meta_from_node
 
     try:
         ok, filename, mimetype, data_bytes = fetch_doc_from_node(doc_id)
@@ -291,7 +314,9 @@ def _background_index(doc_id: str):
         if scan.get("found") and not prev.get("confirmed", False):
             return
 
-        index_bytes(doc_id, filename, mimetype, data_bytes)
+        meta = fetch_doc_meta_from_node(doc_id) or {}
+        file_hash = meta.get("contentHash")
+        index_bytes(doc_id, filename, mimetype, data_bytes, file_hash=file_hash)
 
     except Exception as e:
         logger.exception("Background indexing failed for %s: %s", doc_id, e)

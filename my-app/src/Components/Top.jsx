@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import "./Top.css";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -7,30 +7,50 @@ gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
 
 export default function Top() {
   const [visible, setVisible] = useState(false);
+  const scrollElement = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    return document.scrollingElement || document.documentElement;
+  }, []);
 
   useEffect(() => {
+    if (!scrollElement) return undefined;
     const toggleVisibility = () => {
-      setVisible(window.scrollY > 200);
+      setVisible(scrollElement.scrollTop > 200);
     };
     // Passive listener improves scroll performance by guaranteeing no preventDefault().
     window.addEventListener("scroll", toggleVisibility, { passive: true });
     return () => {
       window.removeEventListener("scroll", toggleVisibility);
     };
-  }, []);
+  }, [scrollElement]);
 
   const scrollToTop = () => {
-    try {
-      // Smooth scroll to the top via GSAP.
-      gsap.to(window, {
-        duration: 1.4,
-        scrollTo: { y: 0, autoKill: true },
-        ease: "power2.out",
-      });
-    } catch (_) {
-      // Fallback to native smooth scrolling.
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    if (typeof window === "undefined") return;
+    if (!scrollElement) return;
+    const navbar = document.getElementById("navbar");
+    const targetY = navbar
+      ? navbar.getBoundingClientRect().top + window.pageYOffset
+      : 0;
+    const triggers = ScrollTrigger?.getAll ? ScrollTrigger.getAll() : [];
+    const resumeTriggers = () => {
+      triggers.forEach((trigger) => trigger.enable());
+      ScrollTrigger?.refresh?.();
+    };
+    const pauseTriggers = () => {
+      triggers.forEach((trigger) => trigger.disable(true));
+    };
+    pauseTriggers();
+    gsap.killTweensOf(window);
+    gsap.to(window, {
+      duration: 1.6,
+      scrollTo: { y: targetY, autoKill: false },
+      ease: "power2.inOut",
+      overwrite: true,
+      onComplete: () => {
+        window.scrollTo({ top: targetY, left: 0 });
+        resumeTriggers();
+      },
+    });
   };
 
   return (

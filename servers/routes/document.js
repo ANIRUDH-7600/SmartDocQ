@@ -550,9 +550,10 @@ router.get('/:id/_meta', async (req, res) => {
     const svc = process.env.SERVICE_TOKEN;
     const provided = req.header('x-service-token');
     if (!provided || provided !== svc) return res.status(403).json({ message: 'Forbidden' });
-    const doc = await Document.findById(req.params.id).select('sensitiveFound consentConfirmed sensitiveSummary processingStatus');
+    const doc = await Document.findById(req.params.id).select('contentHash sensitiveFound consentConfirmed sensitiveSummary processingStatus');
     if (!doc) return res.status(404).json({ message: 'Not found' });
     res.json({
+      contentHash: doc.contentHash || null,
       sensitiveFound: !!doc.sensitiveFound,
       consentConfirmed: !!doc.consentConfirmed,
       sensitiveSummary: doc.sensitiveSummary || {},
@@ -576,11 +577,21 @@ router.patch("/:id/text", verifyToken, ensureActive, async (req, res) => {
     const doc = await Document.findOne({ _id: req.params.id, user: req.userId });
     if (!doc) return res.status(404).json({ message: "Document not found" });
 
+    // To keep `contentHash` a SHA-256 of the stored file bytes (single source of truth),
+    // only allow this endpoint for text documents.
+    if ((doc.type || "").toLowerCase() !== "text/plain") {
+      return res.status(400).json({
+        message: "Text editing is only supported for text/plain documents. Please re-upload the updated file instead.",
+      });
+    }
+
     // If the original document is a text file, update stored binary for single source of truth
     if ((doc.type || "").toLowerCase() === "text/plain") {
       const buf = Buffer.from(text, "utf8");
       doc.data = buf;
       doc.size = buf.length;
+      // Keep contentHash consistent with stored bytes.
+      doc.contentHash = hashBuffer(buf);
       doc.processingStatus = "indexing";
       doc.processingError = "";
       await doc.save();

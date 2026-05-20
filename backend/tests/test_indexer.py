@@ -235,6 +235,19 @@ def test_metadata_validation(fake_collection, mock_embedding, disable_node_push,
     assert meta["pipeline_version"] == indexer.INDEX_PIPELINE_VERSION
 
 
+def test_file_hash_stored_in_metadata_when_provided(fake_collection, mock_embedding, disable_node_push, monkeypatch):
+    body = "This is a sufficiently long paragraph for file hash testing. " * 10
+    monkeypatch.setattr(indexer, "chunk_text", lambda _body: [body])
+
+    ok, added = indexer.index_text("doc_hash", "sample.txt", body, file_hash="deadbeef")
+
+    assert ok is True
+    assert added == 1
+
+    meta = next(iter(fake_collection.store.values()))["metadata"]
+    assert meta.get("file_hash") == "deadbeef"
+
+
 # ============================================================================
 # Contextual Chunk Headers (CCH) Tests
 # ============================================================================
@@ -626,6 +639,7 @@ def test_background_index_happy_path(monkeypatch, clean_indexing_state, clean_co
         "text/plain",
         b"Valid content for background indexing. " * 5,
     )
+    fake_retrieval.fetch_doc_meta_from_node = lambda _doc_id: {"contentHash": "bg1hash"}
     monkeypatch.setitem(sys.modules, "services.retrieval_service", fake_retrieval)
 
     monkeypatch.setattr(indexer, "extract_text_for_mimetype", lambda *_args, **_kwargs: "Meaningful text" * 20)
@@ -633,8 +647,8 @@ def test_background_index_happy_path(monkeypatch, clean_indexing_state, clean_co
 
     called = {}
 
-    def fake_index_bytes(doc_id_arg, filename_arg, mimetype_arg, data_bytes_arg):
-        called["args"] = (doc_id_arg, filename_arg, mimetype_arg, data_bytes_arg)
+    def fake_index_bytes(doc_id_arg, filename_arg, mimetype_arg, data_bytes_arg, file_hash=None):
+        called["args"] = (doc_id_arg, filename_arg, mimetype_arg, data_bytes_arg, file_hash)
         return True, 1
 
     monkeypatch.setattr(indexer, "index_bytes", fake_index_bytes)
@@ -648,6 +662,7 @@ def test_background_index_happy_path(monkeypatch, clean_indexing_state, clean_co
     assert called["args"][1] == "sample.txt"
     assert called["args"][2] == "text/plain"
     assert isinstance(called["args"][3], (bytes, bytearray))
+    assert called["args"][4] == "bg1hash"
 
     assert indexer.consent_state[doc_id]["sensitive"] is False
     assert doc_id not in indexer._indexing_in_progress
@@ -665,6 +680,7 @@ def test_background_index_blocked_by_sensitive_without_consent(
         "text/plain",
         b"Sensitive content bytes",
     )
+    fake_retrieval.fetch_doc_meta_from_node = lambda _doc_id: {"contentHash": "bg2hash"}
     monkeypatch.setitem(sys.modules, "services.retrieval_service", fake_retrieval)
 
     monkeypatch.setattr(indexer, "extract_text_for_mimetype", lambda *_args, **_kwargs: "SSN: 123-45-6789")
@@ -697,6 +713,7 @@ def test_background_index_always_cleans_up_on_exception(
         raise RuntimeError("fetch failed")
 
     fake_retrieval.fetch_doc_from_node = boom
+    fake_retrieval.fetch_doc_meta_from_node = lambda _doc_id: {"contentHash": "bg3hash"}
     monkeypatch.setitem(sys.modules, "services.retrieval_service", fake_retrieval)
 
     indexer._indexing_in_progress.add(doc_id)

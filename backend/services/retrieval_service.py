@@ -8,12 +8,22 @@ Routes should call retrieve_context() and get back plain text — no query logic
 import re
 import requests
 import logging
+import threading
+import time
 
 from config import NODE_BASE_URL, SERVICE_TOKEN, NODE_FETCH_TIMEOUT
 from db.chroma import collection
 from services.embedding_service import generate_embeddings
 
 logger = logging.getLogger(__name__)
+
+
+# --- Node document metadata TTL cache ---
+# Used to avoid one synchronous Node HTTP call per question.
+# Fail-open: any cache errors should fall back to a direct fetch.
+_DOC_META_CACHE_TTL = 300  # 5 minutes
+_doc_meta_cache: dict[str, dict] = {}
+_doc_meta_cache_lock = threading.Lock()
 
 _STOP_WORDS = {
     "the", "a", "an", "and", "or", "of", "in", "on", "to", "for",
@@ -115,7 +125,18 @@ def fetch_doc_from_node(doc_id: str):
 
 
 def fetch_doc_meta_from_node(doc_id: str):
-    """Fetch document metadata (sensitiveFound/consentConfirmed)."""
+    """Fetch document metadata from Node.
+
+    Expected keys (best-effort; depends on Node version):
+      - contentHash: sha256 hex digest of the stored file bytes
+      - sensitiveFound: whether sensitive data was detected
+      - consentConfirmed: whether user consent was confirmed
+
+    Notes:
+      - Returns None if the Node endpoint is unavailable.
+      - Callers must be backward compatible with missing keys.
+    """
+
     try:
         url = f"{NODE_BASE_URL}/api/document/{doc_id}/_meta"
         headers = {"x-service-token": SERVICE_TOKEN}
@@ -128,3 +149,83 @@ def fetch_doc_meta_from_node(doc_id: str):
 
     except Exception:
         return None
+
+
+def get_cached_doc_meta(doc_id: str) -> dict | None:
+    """Return cached Node document metadata for doc_id if not expired."""
+
+    try:
+        doc_id = (doc_id or "").strip()
+        if not doc_id:
+            return None
+
+        now = time.time()
+        with _doc_meta_cache_lock:
+            entry = _doc_meta_cache.get(doc_id)
+            if not isinstance(entry, dict):
+                return None
+            expires_at = entry.get("expires_at")
+            if not isinstance(expires_at, (int, float)):
+                _doc_meta_cache.pop(doc_id, None)
+                return None
+            if now >= float(expires_at):
+                _doc_meta_cache.pop(doc_id, None)
+                return None
+
+            data = entry.get("data")
+            return data if isinstance(data, dict) else None
+
+    except Exception:
+        return None
+
+
+def set_cached_doc_meta(doc_id: str, meta: dict):
+    """Store Node metadata for doc_id with TTL. Safe no-op on invalid input."""
+
+    try:
+        doc_id = (doc_id or "").strip()
+        if not doc_id or not isinstance(meta, dict):
+            return
+
+        with _doc_meta_cache_lock:
+            _doc_meta_cache[doc_id] = {
+                "data": meta,
+                "expires_at": time.time() + _DOC_META_CACHE_TTL,
+            }
+    except Exception:
+        return
+
+
+def invalidate_cached_doc_meta(doc_id: str):
+    """Remove cache entry for doc_id if it exists."""
+
+    try:
+        doc_id = (doc_id or "").strip()
+        if not doc_id:
+            return
+        with _doc_meta_cache_lock:
+            _doc_meta_cache.pop(doc_id, None)
+    except Exception:
+        return
+
+
+def fetch_doc_meta_cached(doc_id: str) -> dict:
+    """Fetch Node metadata with TTL caching.
+
+    Returns {} on failure.
+    """
+
+    try:
+        cached = get_cached_doc_meta(doc_id)
+        if isinstance(cached, dict):
+            return cached
+
+        meta = fetch_doc_meta_from_node(doc_id)
+        if isinstance(meta, dict):
+            set_cached_doc_meta(doc_id, meta)
+            return meta
+
+        return {}
+    except Exception:
+        # Fail open: keep behavior similar to callers using fetch_doc_meta_from_node.
+        return {}

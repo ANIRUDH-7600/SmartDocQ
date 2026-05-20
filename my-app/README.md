@@ -17,7 +17,7 @@ Both APIs must allow the deployed frontend origin with credentials support for h
 
 - `Access-Control-Allow-Origin: https://<your-vercel-domain>.vercel.app` (must be exact, not `*`)
 - `Access-Control-Allow-Credentials: true`
-- `Access-Control-Allow-Headers: Authorization, Content-Type`
+- `Access-Control-Allow-Headers: Authorization, Content-Type` (Node also allows `x-service-token` for internal Flask-to-Node calls)
 - `Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS`
 - Properly handle `OPTIONS` preflight responses.
 

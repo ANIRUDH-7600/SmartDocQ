@@ -12,7 +12,7 @@ from db.chroma import collection
 from indexing.indexer import index_bytes, index_text, has_index
 
 from state.memory_store import consent_state
-from services.retrieval_service import fetch_doc_from_node, fetch_doc_meta_from_node
+from services.retrieval_service import fetch_doc_from_node, fetch_doc_meta_from_node, invalidate_cached_doc_meta
 from utils.security import detect_sensitive
 
 document_bp = Blueprint("document", __name__)
@@ -33,12 +33,13 @@ def index_from_atlas():
         if not ok:
             return jsonify({"error": filename}), 404
 
-        from backend.utils.extraction import extract_text_for_mimetype
+        from utils.extraction import extract_text_for_mimetype
         text = extract_text_for_mimetype(filename, mimetype, data)
         if not text:
             return jsonify({"error": "Unsupported or empty document"}), 400
 
         meta = fetch_doc_meta_from_node(doc_id) or {}
+        file_hash = meta.get("contentHash")
         scan = detect_sensitive(text)
         prev = consent_state.get(doc_id) or {}
         consent_state[doc_id] = {
@@ -56,9 +57,11 @@ def index_from_atlas():
                 "doc_id": doc_id,
             }), 200
 
-        indexed, added = index_bytes(doc_id, filename, mimetype, data)
+        indexed, added = index_bytes(doc_id, filename, mimetype, data, file_hash=file_hash)
         if not indexed:
             return jsonify({"error": "Unsupported or empty document"}), 400
+        # New upload/initial indexing: ensure any cached Node meta is refreshed.
+        invalidate_cached_doc_meta(doc_id)
         return jsonify({"message": f"Indexed {added} chunks", "doc_id": doc_id, "requireConfirmation": False})
     except Exception as e:
         logger.exception("Unexpected error in /api/index-from-atlas")
@@ -201,6 +204,7 @@ def rename_doc(doc_id):
 
 @document_bp.route("/api/document/<doc_id>", methods=["DELETE"])
 def delete_doc(doc_id):
+    invalidate_cached_doc_meta(doc_id)
     all_ids = collection.get()["ids"]
     to_delete = [i for i in all_ids if i.startswith(doc_id)]
     if to_delete:
@@ -235,9 +239,13 @@ def set_consent():
         ok, filename, mimetype, data_bytes = fetch_doc_from_node(doc_id)
         if not ok:
             return jsonify({"error": filename}), 404
-        indexed, added = index_bytes(doc_id, filename, mimetype, data_bytes)
+        meta = fetch_doc_meta_from_node(doc_id) or {}
+        file_hash = meta.get("contentHash")
+        indexed, added = index_bytes(doc_id, filename, mimetype, data_bytes, file_hash=file_hash)
         if not indexed:
             return jsonify({"error": "Unsupported or empty document"}), 400
+        # Consent-triggered indexing: refresh meta on next read.
+        invalidate_cached_doc_meta(doc_id)
         return jsonify({"message": f"Consent recorded. Indexed {added} chunks.", "requireConfirmation": False})
 
     if not consent:
@@ -258,6 +266,10 @@ def replace_text_index():
     if text is None:
         return jsonify({"error": "Missing text"}), 400
 
+    # Content is changing (Node updates stored bytes + contentHash before calling this).
+    # Ensure next meta read fetches fresh contentHash even if indexing is deferred.
+    invalidate_cached_doc_meta(doc_id)
+
     try:
         scan = detect_sensitive(text or "")
         prev = consent_state.get(doc_id) or {}
@@ -276,7 +288,10 @@ def replace_text_index():
                 "doc_id": doc_id,
             }), 200
 
-        indexed, added = index_text(doc_id, filename, text)
+        # Best-effort: attach a bytes hash if Node provides one.
+        meta = fetch_doc_meta_from_node(doc_id) or {}
+        file_hash = meta.get("contentHash")
+        indexed, added = index_text(doc_id, filename, text, file_hash=file_hash)
         if not indexed:
             return jsonify({"error": "Empty text or indexing failed"}), 400
         return jsonify({"message": f"Indexed {added} chunks", "doc_id": doc_id, "requireConfirmation": False})

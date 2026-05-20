@@ -30,6 +30,8 @@ ReindexReason = Literal[
     "model_mismatch",
     "pipeline_version_mismatch",
     "missing_metadata",
+    "missing_file_hash_metadata",
+    "content_hash_mismatch",
     "error",
 ]
 
@@ -41,6 +43,7 @@ class ReindexStatus:
     needs_reindex: bool
     reason: ReindexReason
     stored_embedding_model: Optional[str] = None
+    stored_file_hash: Optional[str] = None
 
 
 def _get_one_chunk_metadata(doc_id: str) -> tuple[bool, Optional[dict]]:
@@ -68,7 +71,7 @@ def _get_one_chunk_metadata(doc_id: str) -> tuple[bool, Optional[dict]]:
     return True, meta if isinstance(meta, dict) else None
 
 
-def get_reindex_status(doc_id: str) -> ReindexStatus:
+def get_reindex_status(doc_id: str, current_file_hash: str | None = None) -> ReindexStatus:
     """Return whether this document's vectors are compatible with current EMBED_MODEL.
 
     Rules:
@@ -76,6 +79,9 @@ def get_reindex_status(doc_id: str) -> ReindexStatus:
     - If vectors exist but are missing `embedding_model` metadata => treat as
       legacy and recommend reindex (but callers may choose to keep serving).
     - If stored model differs from current EMBED_MODEL => needs reindex.
+
+    If current_file_hash is provided, also validate that stored vectors were built
+    from the exact same source bytes.
 
     Any unexpected errors default to `needs_reindex=True` (fail safe).
     """
@@ -108,7 +114,32 @@ def get_reindex_status(doc_id: str) -> ReindexStatus:
                 stored_embedding_model=stored,
             )
 
-        return ReindexStatus(needs_reindex=False, reason="ok", stored_embedding_model=stored)
+        # Source-bytes compatibility check (optional).
+        # If current_file_hash is provided, ensure vectors were generated from the
+        # same exact file bytes.
+        if current_file_hash:
+            stored_file_hash = (meta or {}).get("file_hash")
+            if not stored_file_hash:
+                return ReindexStatus(
+                    needs_reindex=True,
+                    reason="missing_file_hash_metadata",
+                    stored_embedding_model=stored,
+                    stored_file_hash=None,
+                )
+            if stored_file_hash != current_file_hash:
+                return ReindexStatus(
+                    needs_reindex=True,
+                    reason="content_hash_mismatch",
+                    stored_embedding_model=stored,
+                    stored_file_hash=stored_file_hash,
+                )
+
+        return ReindexStatus(
+            needs_reindex=False,
+            reason="ok",
+            stored_embedding_model=stored,
+            stored_file_hash=(meta or {}).get("file_hash") if current_file_hash else None,
+        )
 
     except Exception as e:
         logger.warning("[VectorVersioning] Failed to read index metadata for %s: %s", doc_id, e)
