@@ -20,6 +20,7 @@ from utils.extraction import (
     extract_text_from_docx_bytes,
     extract_text_from_txt_bytes,
 )
+from utils.table_extraction import extract_tables_for_file, render_markdown_table, flatten_table_for_embedding
 from utils.security import detect_sensitive
 from services.embedding_service import generate_embeddings
 from indexing.chunking import chunk_text, split_sheet_sections
@@ -29,10 +30,21 @@ logger = logging.getLogger(__name__)
 
 
 # ===== CONFIG =====
-MIN_CHUNK_LEN = 100
-MIN_WORDS = 10
+MIN_CHUNK_LEN = 40
+MIN_WORDS = 4
+
+# Cap markdown stored in metadata to avoid Chroma bloat.
+# This is auxiliary (debug/UI preview) and not retrieval-critical.
+MAX_MD_META_LEN = 800
+_MD_TRUNC_SUFFIX = "...[truncated]"
 
 _JUNK_PATTERN = re.compile(r"\b(fig\.?|figure|table|page)\b")
+
+# Preserve structured identifier-heavy chunks (teams / academic IDs / mappings).
+IDENTIFIER_RE = re.compile(
+    r"\b(team\s*\d+|[0-9]{2}[A-Z]{2}[0-9A-Z]+)\b",
+    re.IGNORECASE,
+)
 
 
 _indexing_in_progress = set()
@@ -40,6 +52,24 @@ _indexing_lock = threading.Lock()
 
 
 # ===== HELPERS =====
+
+def _truncate_markdown(md: str, *, max_len: int = MAX_MD_META_LEN) -> str:
+    try:
+        md = "" if md is None else str(md)
+    except Exception:
+        return ""
+
+    md = md.strip()
+    if not md:
+        return ""
+    if max_len <= 0:
+        return _MD_TRUNC_SUFFIX
+    if len(md) <= max_len:
+        return md
+
+    suffix = _MD_TRUNC_SUFFIX
+    keep = max(0, int(max_len) - len(suffix))
+    return md[:keep].rstrip() + suffix
 
 def _build_chunk_header(filename: str, sheet_name: str | None = None) -> str:
     """Build a contextual header prepended ONLY to embedding input.
@@ -114,6 +144,10 @@ def _is_noise(c: str) -> bool:
     c = c.strip()
     words = c.split()
 
+    # Preserve structured identifier-heavy chunks.
+    if IDENTIFIER_RE.search(c):
+        return False
+
     if len(c) < MIN_CHUNK_LEN and len(words) < MIN_WORDS:
         return True
 
@@ -137,7 +171,7 @@ def _index_sections(
     sections: list,
     chunk_records_out: list,
     file_hash: str | None = None,
-) -> int:
+) -> tuple[int, int]:
     BATCH_SIZE = INDEX_BATCH_SIZE
     batch_embeddings, batch_documents, batch_metadatas, batch_ids = [], [], [], []
     added = 0
@@ -160,11 +194,19 @@ def _index_sections(
             if _is_noise(c):
                 continue
 
-            #normalization + dedup
+            # normalization + dedup
             norm = " ".join(c.lower().split())
-            if norm in seen:
+            is_dup = norm in seen
+            if not is_dup:
+                seen.add(norm)
+
+            # Reserve a stable logical chunk id even if we skip later.
+            reserved_chunk_index = chunk_index
+            chunk_index += 1
+
+            # Skip duplicates after consuming an index to preserve deterministic ordering.
+            if is_dup:
                 continue
-            seen.add(norm)
 
             # Contextual Chunk Headers (CCH): prepend document/sheet context
             # to the embedding input while keeping the stored chunk text intact.
@@ -179,7 +221,7 @@ def _index_sections(
             # after EMBED_MODEL changes.
             meta = {
                 "doc_id": doc_id,
-                "chunk": chunk_index,
+                "chunk": reserved_chunk_index,
                 "filename": filename,
                 "embedding_model": EMBED_MODEL,
                 # ISO 8601 UTC timestamp for observability/debugging.
@@ -199,16 +241,166 @@ def _index_sections(
             batch_embeddings.append(emb)
             batch_documents.append(c)
             batch_metadatas.append(meta)
-            batch_ids.append(f"{doc_id}_{chunk_index}")
+            batch_ids.append(f"{doc_id}_{reserved_chunk_index}")
 
             chunk_records_out.append({
-                "chunk": chunk_index,
+                "chunk": reserved_chunk_index,
                 "sheet": sheet_name or None,
                 "text": c
             })
 
+            if len(batch_ids) >= BATCH_SIZE:
+                flush()
+
+    flush()
+    return added, chunk_index
+
+
+def _iter_table_row_groups(
+    headers: list[str],
+    rows: list[list[str]],
+    *,
+    max_rows_per_group: int = 50,
+    max_flat_chars: int = 4500,
+    sheet: str | None = None,
+) -> list[tuple[int, int, list[list[str]]]]:
+    """Return [(row_start, row_end_exclusive, rows_subset), ...].
+
+    Avoid splitting across rows. Uses a simple size heuristic so very large
+    tables become multiple chunks.
+    """
+
+    if not rows:
+        return []
+
+    # Small tables: keep as a single semantic unit.
+    flat = flatten_table_for_embedding(sheet=sheet, headers=headers, rows=rows)
+    if len(rows) <= max_rows_per_group and len(flat) <= max_flat_chars:
+        return [(0, len(rows), rows)]
+
+    groups: list[tuple[int, int, list[list[str]]]] = []
+    start = 0
+    while start < len(rows):
+        end = min(len(rows), start + max_rows_per_group)
+
+        # If the group is still too large text-wise, shrink it.
+        while end > start + 1:
+            flat_group = flatten_table_for_embedding(sheet=sheet, headers=headers, rows=rows[start:end])
+            if len(flat_group) <= max_flat_chars:
+                break
+            end -= 1
+
+        groups.append((start, end, rows[start:end]))
+        start = end
+
+    return groups
+
+
+def _index_tables(
+    doc_id: str,
+    filename: str,
+    tables: list[dict],
+    *,
+    start_chunk_index: int,
+    chunk_records_out: list,
+    file_hash: str | None = None,
+) -> int:
+    """Index extracted tables as table-derived chunks.
+
+    Embedding input uses the flattened table representation; stored document text
+    is also flattened to keep Chroma keyword overlap strong.
+    Markdown is preserved in metadata (size-capped) for future UI/debugging.
+    """
+
+    if not tables:
+        return 0
+
+    BATCH_SIZE = INDEX_BATCH_SIZE
+    batch_embeddings, batch_documents, batch_metadatas, batch_ids = [], [], [], []
+    added = 0
+    chunk_index = int(start_chunk_index or 0)
+
+    def flush():
+        nonlocal added, batch_embeddings, batch_documents, batch_metadatas, batch_ids
+        added += _flush_batch(collection, batch_embeddings, batch_documents, batch_metadatas, batch_ids)
+        batch_embeddings, batch_documents, batch_metadatas, batch_ids = [], [], [], []
+
+    seen_tables: set[str] = set()
+
+    for table_index, t in enumerate(tables):
+        headers = list(t.get("headers") or [])
+        rows = [list(r) for r in (t.get("rows") or [])]
+        if not headers or not rows:
+            continue
+
+        sheet_name = t.get("sheet") or None
+        table_id = t.get("table_id")
+
+        groups = _iter_table_row_groups(headers, rows, sheet=sheet_name)
+        for row_start, row_end, subset in groups:
+            md = render_markdown_table(headers, subset)
+            flat = flatten_table_for_embedding(sheet=sheet_name, headers=headers, rows=subset)
+            if not flat.strip() or not md.strip():
+                continue
+
+            md_meta = _truncate_markdown(md)
+
+            # Table-chunk deduplication (ONLY for table-derived chunks).
+            norm = " ".join(flat.lower().split())
+            is_dup = norm in seen_tables
+            if not is_dup:
+                seen_tables.add(norm)
+
+            # Reserve a stable logical chunk id even if we skip later.
+            reserved_chunk_index = chunk_index
             chunk_index += 1
 
+            # Skip duplicates after consuming an index to preserve deterministic ordering.
+            if is_dup:
+                continue
+
+            header = _build_chunk_header(filename, sheet_name)
+            emb_in = f"{header}\n\n{flat}"
+            emb = generate_embeddings(emb_in)
+            if not emb:
+                continue
+
+            meta = {
+                "doc_id": doc_id,
+                "chunk": reserved_chunk_index,
+                "filename": filename,
+                "embedding_model": EMBED_MODEL,
+                "indexed_at": datetime.now(timezone.utc).isoformat(),
+                "pipeline_version": INDEX_PIPELINE_VERSION,
+                "is_table": True,
+                "table_id": table_id,
+                "table_index": table_index,
+                "row_start": row_start,
+                "row_end": row_end,
+                # Preserve markdown for future UI/debugging while keeping Chroma documents clean.
+                "markdown": md_meta,
+            }
+
+            if file_hash:
+                meta["file_hash"] = file_hash
+            if sheet_name:
+                meta["sheet"] = sheet_name
+            meta["chunk_header"] = header
+
+            batch_embeddings.append(emb)
+            batch_documents.append(flat)
+            batch_metadatas.append(meta)
+            batch_ids.append(f"{doc_id}_{reserved_chunk_index}")
+
+            chunk_records_out.append({
+                "chunk": reserved_chunk_index,
+                "sheet": sheet_name or None,
+                "text": flat,
+                "is_table": True,
+                "table_id": table_id,
+                "table_index": table_index,
+                "markdown": md_meta,
+            })
             if len(batch_ids) >= BATCH_SIZE:
                 flush()
 
@@ -234,14 +426,17 @@ def index_bytes(
         "application/msword",
     ) or ext in ("docx", "doc"):
         text = extract_text_from_docx_bytes(data)
+    elif mimetype == "text/csv" or ext == "csv":
+        # For spreadsheets, the scan/index text is derived from the sheet/table content.
+        text = extract_text_for_mimetype(filename, mimetype, data)
+    elif mimetype == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" or ext == "xlsx":
+        text = extract_text_for_mimetype(filename, mimetype, data)
     elif mimetype == "text/plain" or ext == "txt":
         text = extract_text_from_txt_bytes(data)
     else:
         return False, 0
 
     text = (text or "").strip()
-    if not text:
-        return False, 0
 
     # Prefer Node-provided hash (sha256 of stored bytes). If absent, compute.
     if file_hash is None and data:
@@ -250,12 +445,42 @@ def index_bytes(
         except Exception:
             file_hash = None
 
+    # Extract structured tables (CSV/XLSX/DOCX only).
+    try:
+        tables = extract_tables_for_file(filename, mimetype, data, source_key=doc_id)
+    except Exception:
+        tables = []
+
+    # Preserve backward compatibility: if a file yields neither text nor tables, treat it as empty/unsupported.
+    if not text and not tables:
+        return False, 0
+
     _delete_existing(doc_id)
 
-    sections = split_sheet_sections(text)
+    sections = split_sheet_sections(text) if text else [(None, "")]
     chunk_records = []
 
-    added = _index_sections(doc_id, filename, sections, chunk_records, file_hash=file_hash)
+    if text:
+        added_text, next_chunk_index = _index_sections(
+            doc_id,
+            filename,
+            sections,
+            chunk_records,
+            file_hash=file_hash,
+        )
+    else:
+        added_text, next_chunk_index = 0, 0
+
+    added_tables = _index_tables(
+        doc_id,
+        filename,
+        tables,
+        start_chunk_index=next_chunk_index,
+        chunk_records_out=chunk_records,
+        file_hash=file_hash,
+    )
+
+    added = added_text + added_tables
 
     _push_chunks_to_node(doc_id, filename, chunk_records)
     return True, added
@@ -280,7 +505,7 @@ def index_text(doc_id: str, filename: str, text: str, file_hash: str | None = No
     sections = split_sheet_sections(text)
     chunk_records = []
 
-    added = _index_sections(doc_id, filename, sections, chunk_records, file_hash=file_hash)
+    added, _next_chunk_index = _index_sections(doc_id, filename, sections, chunk_records, file_hash=file_hash)
 
     _push_chunks_to_node(doc_id, filename, chunk_records)
     return True, added

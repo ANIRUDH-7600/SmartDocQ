@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 const crypto = require("crypto");
+const path = require("path");
 const Document = require("../models/Document");
 const { verifyToken, ensureActive } = require("./auth");
 const fetch = require("node-fetch");
@@ -10,6 +11,30 @@ const logger = require("../lib/logger");
 // Generate content hash for deduplication
 function hashBuffer(buffer) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+function normalizeMimetype(mimetype, filename) {
+  const type = String(mimetype || "").toLowerCase();
+  const ext = path.extname(String(filename || "")).toLowerCase();
+
+  // If the client/browser provides a specific type we trust it.
+  if (
+    type &&
+    type !== "application/octet-stream" &&
+    type !== "binary/octet-stream" &&
+    type !== "" 
+  ) {
+    return type;
+  }
+
+  // Otherwise, infer from extension for known types.
+  if (ext === ".pdf") return "application/pdf";
+  if (ext === ".txt") return "text/plain";
+  if (ext === ".csv") return "text/csv";
+  if (ext === ".xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (ext === ".docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (ext === ".doc") return "application/msword";
+  return type || "application/octet-stream";
 }
 
 // Centralize Flask/Python backend base URL for deployments
@@ -43,13 +68,19 @@ const upload = multer({
   storage,
   limits: { fileSize: 25 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowed = [
+    const allowedMimes = [
       "application/pdf",
       "application/msword",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/csv",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "text/plain"
     ];
-    if (!allowed.includes(file.mimetype)) {
+    const allowedExts = [".pdf", ".doc", ".docx", ".txt", ".csv", ".xlsx"];
+    const ext = path.extname(String(file.originalname || "")).toLowerCase();
+    const mime = normalizeMimetype(file.mimetype, file.originalname);
+
+    if (!allowedMimes.includes(mime) && !allowedExts.includes(ext)) {
       return cb(new Error("Unsupported file type!"));
     }
     cb(null, true);
@@ -61,6 +92,7 @@ router.post("/upload", verifyToken, ensureActive, upload.single("file"), async (
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
 
     const { originalname, mimetype, size, buffer } = req.file;
+    const normalizedMimetype = normalizeMimetype(mimetype, originalname);
     
     // === Database-Level Deduplication Check ===
     const contentHash = hashBuffer(buffer);
@@ -88,21 +120,25 @@ router.post("/upload", verifyToken, ensureActive, upload.single("file"), async (
       });
     }
     
-    // Check if this is a Word document that should be converted to PDF
-    const isWordDocument = mimetype === "application/msword" || 
-                          mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    // Word conversion policy:
+    // - Keep DOCX as DOCX by default so the Python service can extract structured tables.
+    // - Allow opt-in conversion via CONVERT_DOCX_TO_PDF=1.
+    const isDoc = normalizedMimetype === "application/msword";
+    const isDocx = normalizedMimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    const convertDocxToPdf = String(process.env.CONVERT_DOCX_TO_PDF || "").trim() === "1";
+    const shouldConvertWordToPdf = isDoc || (isDocx && convertDocxToPdf);
     
     let finalBuffer = buffer;
-    let finalMimetype = mimetype;
+    let finalMimetype = normalizedMimetype;
     let finalName = originalname;
     
-    if (isWordDocument) {
+    if (shouldConvertWordToPdf) {
       try {
         // Convert Word to PDF using Flask backend
         const formData = new (require('form-data'))();
         formData.append('file', buffer, {
           filename: originalname,
-          contentType: mimetype
+          contentType: normalizedMimetype
         });
         
         const convertResponse = await fetch(FLASK_CONVERT_URL, {
@@ -154,12 +190,18 @@ router.post("/upload", verifyToken, ensureActive, upload.single("file"), async (
       throw saveErr;
     }
 
-    // If file may contain sensitive data, do a quick server-side text scan before indexing
-    // Heuristic: only scan PDFs and text to avoid heavy conversions here
+    // Trigger Flask scan+index for supported document types.
     try {
       const type = (finalMimetype || '').toLowerCase();
       let textSample = '';
-      if (type.includes('pdf') || type === 'text/plain') {
+      if (
+        type.includes('pdf') ||
+        type === 'text/plain' ||
+        type === 'text/csv' ||
+        type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+        type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+        type === 'application/msword'
+      ) {
         // Ask Flask to scan-and-index; it will gate on consent and set statuses accordingly
         await fetch(FLASK_INDEX_URL, {
           method: 'POST',
@@ -181,7 +223,7 @@ router.post("/upload", verifyToken, ensureActive, upload.single("file"), async (
       documentId: doc._id, 
       doc_id: doc.doc_id, 
       processingStatus: doc.processingStatus,
-      converted: isWordDocument && finalMimetype === "application/pdf"
+      converted: shouldConvertWordToPdf && finalMimetype === "application/pdf"
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -220,20 +262,22 @@ router.post("/upload/batch", verifyToken, ensureActive, upload.array("files", 10
     
     for (const f of req.files) {
       let finalBuffer = f.buffer;
-      let finalMimetype = f.mimetype;
+      let finalMimetype = normalizeMimetype(f.mimetype, f.originalname);
       let finalName = f.originalname;
       
-      // Check if this is a Word document that should be converted to PDF
-      const isWordDocument = f.mimetype === "application/msword" || 
-                            f.mimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      // Word conversion policy (batch): keep DOCX as DOCX by default.
+      const isDoc = finalMimetype === "application/msword";
+      const isDocx = finalMimetype === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      const convertDocxToPdf = String(process.env.CONVERT_DOCX_TO_PDF || "").trim() === "1";
+      const shouldConvertWordToPdf = isDoc || (isDocx && convertDocxToPdf);
       
-      if (isWordDocument) {
+      if (shouldConvertWordToPdf) {
         try {
           // Convert Word to PDF using Flask backend
           const formData = new FormData();
           formData.append('file', f.buffer, {
             filename: f.originalname,
-            contentType: f.mimetype
+            contentType: finalMimetype
           });
           
           const convertResponse = await fetch(FLASK_CONVERT_URL, {
@@ -283,7 +327,14 @@ router.post("/upload/batch", verifyToken, ensureActive, upload.array("files", 10
       }
       try {
         const type = (finalMimetype || '').toLowerCase();
-        if (type.includes('pdf') || type === 'text/plain') {
+        if (
+          type.includes('pdf') ||
+          type === 'text/plain' ||
+          type === 'text/csv' ||
+          type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+          type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+          type === 'application/msword'
+        ) {
           await fetch(FLASK_INDEX_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -300,7 +351,7 @@ router.post("/upload/batch", verifyToken, ensureActive, upload.array("files", 10
         doc_id: doc.doc_id, 
         name: doc.name, 
         processingStatus: doc.processingStatus,
-        converted: isWordDocument && finalMimetype === "application/pdf"
+        converted: shouldConvertWordToPdf && finalMimetype === "application/pdf"
       });
     }
     res.status(201).json({ message: `Uploaded ${created.length} files`, items: created });

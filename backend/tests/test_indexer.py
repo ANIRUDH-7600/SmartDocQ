@@ -168,6 +168,8 @@ def clean_consent_state():
         ("Figure 1", True),
         ("12345", True),  # single token with no alphabetic characters
         ("Hello", True),  # too short
+        ("Team 06", False),  # identifier-heavy structured chunk
+        ("23CD7A09XY", False),  # academic/project identifier
         ("This is a meaningful paragraph. " * 10, False),
     ],
 )
@@ -320,13 +322,14 @@ def test_chunk_header_with_sheet_saved_in_metadata(fake_collection, disable_node
     monkeypatch.setattr(indexer, "chunk_text", lambda _body: [chunk])
 
     chunk_records = []
-    added = indexer._index_sections(
+    added, next_chunk_index = indexer._index_sections(
         "doc_cch_sheet",
         "report.xlsx",
         [("Revenue", "dummy")],
         chunk_records,
     )
     assert added == 1
+    assert next_chunk_index == 1
 
     meta = next(iter(fake_collection.store.values()))["metadata"]
     assert "chunk_header" in meta
@@ -584,9 +587,10 @@ def test_sheet_metadata(fake_collection, mock_embedding, monkeypatch):
     monkeypatch.setattr(indexer, "chunk_text", lambda _body: [body])
 
     chunk_records = []
-    added = indexer._index_sections("doc_sheet", "file.xlsx", [("Sheet1", body)], chunk_records)
+    added, next_chunk_index = indexer._index_sections("doc_sheet", "file.xlsx", [("Sheet1", body)], chunk_records)
 
     assert added == 1
+    assert next_chunk_index == 1
 
     meta = next(iter(fake_collection.store.values()))["metadata"]
     assert meta["sheet"] == "Sheet1"

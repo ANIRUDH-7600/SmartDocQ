@@ -1,9 +1,28 @@
 export const SUPPORTED_FILE_TYPES = [
   "application/pdf",
   "text/plain",
+  "text/csv",
+  "application/csv",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
+
+export const SUPPORTED_FILE_EXTENSIONS = [
+  ".pdf",
+  ".txt",
+  ".doc",
+  ".docx",
+  ".csv",
+  ".xlsx",
+];
+
+function getFileExtension(filename = "") {
+  const name = String(filename || "");
+  const i = name.lastIndexOf(".");
+  if (i < 0) return "";
+  return name.slice(i).toLowerCase();
+}
 
 export function sanitizeFilename(filename = "") {
   return String(filename)
@@ -43,17 +62,30 @@ export function buildFileKey(file) {
   return `${file.name}|${file.size}|${file.lastModified}`;
 }
 
-export function validateFiles(incoming, supportedTypes = SUPPORTED_FILE_TYPES, maxSizeMb = 25) {
+export function validateFiles(
+  incoming,
+  supportedTypes = SUPPORTED_FILE_TYPES,
+  maxSizeMb = 25,
+  supportedExtensions = SUPPORTED_FILE_EXTENSIONS
+) {
   const files = Array.isArray(incoming) ? incoming : [];
   const accepted = [];
   const rejected = [];
   const maxBytes = maxSizeMb * 1024 * 1024;
   const sizeLimitLabel = formatBytes(maxBytes);
 
+  const extAllow = new Set((supportedExtensions || []).map((e) => String(e).toLowerCase()));
+
   for (const f of files) {
     if (!f) continue;
 
-    if (!supportedTypes.includes(f.type)) {
+    const ext = getFileExtension(f.name);
+    const mimeOk = supportedTypes.includes(f.type);
+    const extOk = extAllow.has(ext);
+
+    // Some browsers (or drag-drop sources) may provide empty or generic MIME types.
+    // Fall back to filename extension to avoid false rejections.
+    if (!mimeOk && !extOk) {
       rejected.push(`${f.name}: unsupported type`);
       continue;
     }

@@ -33,9 +33,77 @@ _STOP_WORDS = {
 }
 
 
+def _normalize_numeric_tokens(text: str) -> str:
+    return re.sub(r"\b0+(\d+)\b", r"\1", text or "")
+
+
 def _keywords(s: str) -> set:
-    toks = re.split(r"[^A-Za-z0-9]+", (s or "").lower())
-    return {t for t in toks if len(t) >= 3 and t not in _STOP_WORDS and not t.isdigit()}
+    normalized = _normalize_numeric_tokens(s or "")
+    toks = re.split(r"[^A-Za-z0-9]+", normalized.lower())
+    return {
+        t
+        for t in toks
+        if t
+        and (len(t) >= 2 or t.isdigit())
+        and t not in _STOP_WORDS
+    }
+
+
+_TABLE_Q_TERMS = {
+    "table",
+    "row",
+    "rows",
+    "column",
+    "columns",
+    "highest",
+    "lowest",
+    "average",
+    "avg",
+    "mean",
+    "median",
+    "total",
+    "sum",
+    "compare",
+    "percentage",
+    "percent",
+    "statistics",
+    "stats",
+    "values",
+}
+
+
+_EXPLICIT_TABLE_HINTS = {
+    "table",
+    "tables",
+    "row",
+    "rows",
+    "column",
+    "columns",
+    "spreadsheet",
+    "xlsx",
+    "csv",
+}
+
+
+def _table_intent_strength(question: str) -> int:
+    """Return 0 (none), 1 (weak), 2 (explicit).
+
+    Keep it cheap and robust: no external parsers, no heavy NLP.
+    """
+
+    q = (question or "").lower().strip()
+    if not q:
+        return 0
+
+    # Explicit mentions of tables/spreadsheets are strong signals.
+    if any(h in q for h in _EXPLICIT_TABLE_HINTS):
+        return 2
+
+    # Aggregation/comparison verbs are weaker hints (could be narrative text too).
+    if any(t in q for t in _TABLE_Q_TERMS):
+        return 1
+
+    return 0
 
 
 def retrieve_context(question: str, doc_id: str) -> tuple[str | None, str | None]:
@@ -50,38 +118,76 @@ def retrieve_context(question: str, doc_id: str) -> tuple[str | None, str | None
         query_embeddings=[q_emb],
         n_results=12,
         where={"doc_id": doc_id},
-        include=["documents", "distances"],
+        include=["documents", "distances", "metadatas"],
     )
 
     docs = results.get("documents", [[]])[0] or []
     dists = results.get("distances", [[]])[0] or []
+    metas = results.get("metadatas", [[]])[0] or []
 
     q_terms = _keywords(question)
 
-    candidates = []
-    for doc_txt, dist in zip(docs, dists):
+    table_intent = _table_intent_strength(question)
+
+    candidates: list[dict] = []
+    for i, (doc_txt, dist) in enumerate(zip(docs, dists)):
+        meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
         if not doc_txt:
             continue
 
         if dist is None:
             dist = 0.5  # normalize
 
+        # Temporary distance logging (requested for debugging).
+        print(f"DIST: {dist}")
+
         overlap = len(q_terms & _keywords(doc_txt))
         sim = 1.0 - max(0.0, min(1.0, dist))
         score = 0.7 * sim + 0.3 * (overlap / (len(q_terms) or 1))
 
-        candidates.append((score, dist, doc_txt))
+        # Lightweight table-aware boosting.
+        if table_intent:
+            try:
+                is_table = bool(meta and meta.get("is_table"))
+            except Exception:
+                is_table = False
+
+            # Explicit table intent: boost tables more, penalize non-tables slightly.
+            if table_intent >= 2:
+                score *= 1.30 if is_table else 0.93
+            # Weak table intent: mild preference.
+            else:
+                score *= 1.15 if is_table else 0.99
+
+        logger.info(
+            "[Retrieval Candidate] "
+            "dist=%.4f overlap=%s score=%.4f table=%s text=%s",
+            dist,
+            overlap,
+            score,
+            meta.get("is_table") if isinstance(meta, dict) else False,
+            repr(doc_txt[:180]),
+        )
+
+        candidates.append(
+            {
+                "text": doc_txt,
+                "metadata": meta,
+                "score": score,
+                "distance": dist,
+            }
+        )
 
     if not candidates:
         logger.warning("[Retrieval] No candidates found for doc_id={doc_id}")
         return None, None
 
     # Sort by hybrid score (descending)
-    candidates.sort(key=lambda x: x[0], reverse=True)
+    candidates.sort(key=lambda x: float(x.get("score") or 0.0), reverse=True)
 
 
-    strong = [c for c in candidates if c[1] < 0.6]
-    weak = [c for c in candidates if c[1] < 0.9]
+    strong = [c for c in candidates if (c.get("distance") is not None and float(c.get("distance")) < 0.6)]
+    weak = [c for c in candidates if (c.get("distance") is not None and float(c.get("distance")) < 0.9)]
 
     if not strong and weak:
         logger.info("[Retrieval] Fallback to weak matches for doc_id={doc_id}")
@@ -91,7 +197,14 @@ def retrieve_context(question: str, doc_id: str) -> tuple[str | None, str | None
 
     selected = strong[:5] if strong else weak[:5]
 
-    chosen = [c[2] for c in selected]
+    logger.info(
+        "[Retrieval Selected] count=%s strong=%s weak=%s",
+        len(selected),
+        len(strong),
+        len(weak),
+    )
+
+    chosen = [c.get("text") for c in selected if c.get("text")]
 
     if not chosen:
         return None, None

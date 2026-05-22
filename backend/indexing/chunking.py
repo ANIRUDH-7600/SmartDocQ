@@ -4,11 +4,142 @@ import re
 _PARAGRAPH_SPLITTER = re.compile(r"\n\s*\n")
 _SHEET_PATTERN = re.compile(r"^\s*#\s*Sheet:\s*(.*)", re.IGNORECASE)
 
-def _split_large_para(p: str, size: int) -> list:
-    return [p[i:i + size] for i in range(0, len(p), size)]
+# Ensure paragraph snapping doesn't reduce overlap too aggressively.
+_MIN_OVERLAP_RATIO = 0.5
 
 
-def chunk_text(text: str, size: int = 1000, overlap: int = 200) -> list:
+def _nearest_word_boundary(text: str, cut: int) -> int | None:
+    """Return nearest whitespace boundary around cut.
+
+    Prefer the closer boundary; tie-break toward the backward boundary to
+    preserve more leading context (useful for identifier-heavy text).
+    Returns None if there is no whitespace in the string.
+    """
+
+    if not text:
+        return None
+
+    if cut <= 0:
+        return 0
+    if cut >= len(text):
+        return len(text)
+
+    # If we're cutting mid-token, prefer the token start so we don't drop
+    # the leading part of identifiers/words.
+    try:
+        if not text[cut].isspace():
+            for i in range(cut - 1, -1, -1):
+                if text[i].isspace():
+                    return i + 1
+            # No whitespace anywhere => no word boundary to snap to.
+            return None
+    except Exception:
+        pass
+
+    back: int | None = None
+    for i in range(min(cut - 1, len(text) - 1), -1, -1):
+        if text[i].isspace():
+            back = i
+            break
+
+    forward: int | None = None
+    for i in range(max(cut, 0), len(text)):
+        if text[i].isspace():
+            forward = i
+            break
+
+    if back is None and forward is None:
+        return None
+    if back is None:
+        return forward
+    if forward is None:
+        return back + 1
+
+    if (cut - back) <= (forward - cut):
+        return back + 1
+    return forward
+
+
+def _word_boundary_tail(text: str, desired_len: int) -> str:
+    """Return a clean overlap tail without starting mid-word.
+
+    Strategy order:
+    1. Snap to paragraph boundary inside overlap window
+    2. Snap to nearest whitespace boundary around the cut
+    3. Fallback to raw cut if unavoidable
+    """
+
+    if not text or desired_len <= 0:
+        return ""
+
+    if len(text) <= desired_len:
+        return text
+
+    cut = len(text) - desired_len
+
+    # Strategy 1: paragraph boundary inside overlap (only if it retains enough overlap)
+    para_match = re.search(r"\n\s*\n", text[cut:])
+    if para_match:
+        start = cut + para_match.end()
+        tail = text[start:].strip()
+        if tail and len(tail) >= int(desired_len * _MIN_OVERLAP_RATIO):
+            return tail
+
+    # Strategy 2: snap to nearest whitespace boundary around the cut
+    nearest = _nearest_word_boundary(text, cut)
+    if nearest is not None:
+        cut = nearest
+
+    tail = text[cut:].strip()
+    if tail:
+        return tail
+
+    # Strategy 3: raw fallback
+    return text[-desired_len:].strip()
+
+
+def _split_large_para(p: str, size: int) -> list[str]:
+    """Split very large paragraphs into word-safe chunks."""
+
+    p = (p or "").strip()
+    if not p:
+        return []
+
+    if len(p) <= size:
+        return [p]
+
+    parts: list[str] = []
+    start = 0
+
+    while start < len(p):
+        end = min(start + size, len(p))
+
+        # Exact fit
+        if end >= len(p):
+            parts.append(p[start:].strip())
+            break
+
+        # Snap backward to nearest whitespace
+        snap = p.rfind(" ", start, end)
+
+        # If no whitespace found, fallback to hard cut
+        if snap <= start:
+            snap = end
+
+        piece = p[start:snap].strip()
+        if piece:
+            parts.append(piece)
+
+        start = snap
+
+        # Skip leading spaces
+        while start < len(p) and p[start].isspace():
+            start += 1
+
+    return parts
+
+
+def chunk_text(text: str, size: int = 1000, overlap: int = 200) -> list[str]:
     if size <= 0:
         raise ValueError("size must be positive")
     if overlap < 0:
@@ -50,9 +181,10 @@ def chunk_text(text: str, size: int = 1000, overlap: int = 200) -> list:
             windows.append(joined)
 
             if overlap > 0 and len(joined) > overlap:
-                tail = joined[-overlap:]
+                tail = _word_boundary_tail(joined, overlap)
                 buf = [tail, p]
-                cur_len = len(tail) + p_len
+                # Account for the '\n\n' separator between `tail` and `p`.
+                cur_len = len(tail) + p_len + 2
             else:
                 buf = [p]
                 cur_len = p_len

@@ -212,7 +212,7 @@ const UploadPage = () => {
           <div className="upload-section">
             <h1 className="upload-title">📂 Upload Your Document</h1>
             <p className="upload-subtitle">
-              Upload PDFs, Word files, or Text documents for SmartDocQ analysis.
+              Upload PDFs, Word files, Text documents, or spreadsheets for SmartDocQ analysis.
             </p>
 
             <div
@@ -225,7 +225,7 @@ const UploadPage = () => {
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,.doc,.docx,.txt"
+                  accept=".pdf,.doc,.docx,.txt,.csv,.xlsx"
                   onChange={handleFileChange}
                   className="file-input"
                   id="file-upload"
@@ -309,7 +309,7 @@ const UploadPage = () => {
               )}
 
               <div className="file-restrictions">
-                <p>Allowed file types: PDF, Word, and Text files</p>
+                <p>Allowed file types: PDF, Word, Text, CSV, and XLSX</p>
                 <p>Maximum file size: 25MB</p>
               </div>
             </div>

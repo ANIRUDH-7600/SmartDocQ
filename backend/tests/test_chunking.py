@@ -13,6 +13,8 @@ Run:
 import pytest
 
 from indexing.chunking import (
+    _word_boundary_tail,
+    _nearest_word_boundary,
     _split_large_para,
     chunk_text,
     split_sheet_sections,
@@ -39,6 +41,17 @@ def test_split_large_para_non_multiple():
     assert len(chunks[0]) == 1000
     assert len(chunks[1]) == 1000
     assert len(chunks[2]) == 500
+
+
+def test_split_large_para_word_safe_splits_on_spaces():
+    text = ("hello world project title " * 50).strip()
+    chunks = _split_large_para(text, 120)
+
+    assert len(chunks) > 1
+    assert all(chunks)
+    assert all(len(c) <= 120 for c in chunks)
+    # Since the input has regular single spaces, splitting should be lossless.
+    assert " ".join(chunks) == text
 
 
 # =========================
@@ -86,6 +99,70 @@ def test_chunk_text_overlap_applied():
 
     assert len(chunks) == 2
     assert chunks[1].startswith("a" * 200)
+
+
+def test_word_boundary_tail_prefers_paragraph_boundary():
+    text = "Intro\n\nProject title and details follow."
+    tail = _word_boundary_tail(text, desired_len=30)
+    assert tail.startswith("Project title")
+
+
+def test_word_boundary_tail_moves_forward_to_whitespace():
+    text = "hello project title"
+    # This cut is intentionally inside "project".
+    tail = _word_boundary_tail(text, desired_len=10)
+    # Nearest-boundary snapping prefers preserving more identifier context.
+    assert tail == "project title"
+
+
+def test_word_boundary_tail_falls_back_when_no_whitespace():
+    text = "aaaaaaaaaabbbbbbbbbbcccccccccc"
+    tail = _word_boundary_tail(text, desired_len=10)
+    assert tail == text[-10:]
+
+
+def test_nearest_word_boundary_prefers_backward_on_tie():
+    text = "hello project title"
+    # cut inside 'project' such that back and forward whitespace are equally distant
+    cut = len(text) - 10
+    idx = _nearest_word_boundary(text, cut)
+    assert idx == text.find(" ") + 1  # position after space after 'hello'
+
+
+def test_nearest_word_boundary_chooses_forward_when_closer():
+    text = "hello project title"
+    # A cut very close to the whitespace after 'project' should pick forward
+    cut = text.find("title") - 1
+    idx = _nearest_word_boundary(text, cut)
+    assert idx == text.find(" ", text.find("project"))
+
+
+def test_word_boundary_tail_preserves_identifier_near_cut():
+    text = "Team 47QZ9K2M7P project title mapping"
+    # Choose desired_len so the cut lands inside the identifier token.
+    tail = _word_boundary_tail(text, desired_len=27)
+    assert tail.startswith("47QZ9K2M7P")
+
+
+def test_word_boundary_tail_paragraph_snap_must_retain_min_overlap():
+    # Paragraph boundary exists inside overlap window, but tail after it is tiny.
+    text = "alpha beta gamma delta epsilon\n\nX"
+    tail = _word_boundary_tail(text, desired_len=20)
+    # With MIN_OVERLAP_RATIO=0.5, we should NOT return just 'X'.
+    assert tail != "X"
+    assert len(tail) >= 10
+
+
+def test_chunk_text_overlap_uses_word_boundary_tail():
+    # Force a split so overlap is used.
+    p1 = ("alpha beta project title " * 8).strip()
+    p2 = ("next paragraph starts here " * 8).strip()
+
+    chunks = chunk_text(f"{p1}\n\n{p2}", size=250, overlap=60)
+    assert len(chunks) == 2
+
+    expected_tail = _word_boundary_tail(chunks[0], 60)
+    assert chunks[1].startswith(expected_tail)
 
 
 def test_chunk_text_large_paragraph_split():
