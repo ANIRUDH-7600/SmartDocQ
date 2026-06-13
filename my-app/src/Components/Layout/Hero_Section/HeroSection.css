@@ -568,34 +568,24 @@
 }
 
 .content h3 {
-  color: #dfcfb7; /* elegant champagne gold */
+  color: #ffffff; /* pure white constantly */
   font-family: 'Outfit', system-ui, sans-serif;
   font-size: 1.25rem;
   font-weight: 600;
   margin-top: 0;
   margin-bottom: 12px;
   letter-spacing: -0.01em;
-  transition: color 0.4s ease;
-}
-
-.box:hover .content h3 {
-  color: #ffffff; /* pure white on hover */
 }
 
 .content p {
   font-family: 'Outfit', system-ui, sans-serif;
-  color: rgba(248, 250, 252, 0.65); /* soft legible opacity */
+  color: rgba(248, 250, 252, 0.85); /* bright white constantly */
   font-size: 14.5px;
   line-height: 1.6;
   padding: 0;
   margin: 0;
   word-break: break-word;
   overflow-wrap: anywhere;
-  transition: color 0.4s ease;
-}
-
-.box:hover .content p {
-  color: rgba(248, 250, 252, 0.85); /* brightens slightly on hover */
 }
 
 @media (max-width: 1024px) {
