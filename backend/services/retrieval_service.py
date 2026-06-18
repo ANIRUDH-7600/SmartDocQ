@@ -2,10 +2,12 @@
 Retrieval service.
 Responsible for:
   - Fetching raw documents from the Node API
-  - Vector search + keyword re-ranking against ChromaDB
-Routes should call retrieve_context() and get back plain text — no query logic in routes.
+  - Hybrid search: ChromaDB vector search + BM25 (in-process cache),
+    fused with Reciprocal Rank Fusion (RRF) + table-aware boosting
+Routes should call retrieve_context() and get back plain text -- no query logic in routes.
 """
 import re
+import os
 import requests
 import logging
 import threading
@@ -14,8 +16,41 @@ import time
 from config import NODE_BASE_URL, SERVICE_TOKEN, NODE_FETCH_TIMEOUT
 from db.chroma import collection
 from services.embedding_service import generate_embeddings
+from services.bm25_service import bm25_search
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Fusion weights  (RRF_WEIGHT + SIM_WEIGHT must sum to 1.0)
+#
+# Tune these by running retrieval experiments against a labeled query set.
+# Override at runtime without code changes:
+#   RRF_WEIGHT=0.80 SIM_WEIGHT=0.20 python main.py
+#
+# Candidate grid to evaluate:
+#   0.90 / 0.10  — almost pure RRF; good for exact-match-heavy docs
+#   0.85 / 0.15  — current default
+#   0.80 / 0.20  — balanced; likely best for mixed query types
+#   0.75 / 0.25  — leans semantic; good for narrative/conceptual docs
+# ---------------------------------------------------------------------------
+RRF_WEIGHT: float = float(os.environ.get("RRF_WEIGHT", "0.85"))
+SIM_WEIGHT: float = float(os.environ.get("SIM_WEIGHT", "0.15"))
+
+if abs(RRF_WEIGHT + SIM_WEIGHT - 1.0) > 1e-6:
+    logger.warning(
+        "[Retrieval] RRF_WEIGHT + SIM_WEIGHT = %.4f (expected 1.0) — normalizing",
+        RRF_WEIGHT + SIM_WEIGHT,
+    )
+    _total = RRF_WEIGHT + SIM_WEIGHT or 1.0
+    RRF_WEIGHT /= _total
+    SIM_WEIGHT /= _total
+
+logger.info(
+    "[Retrieval] Fusion weights: RRF=%.2f SIM=%.2f",
+    RRF_WEIGHT,
+    SIM_WEIGHT,
+)
+
 
 
 # --- Node document metadata TTL cache ---
@@ -24,29 +59,6 @@ logger = logging.getLogger(__name__)
 _DOC_META_CACHE_TTL = 300  # 5 minutes
 _doc_meta_cache: dict[str, dict] = {}
 _doc_meta_cache_lock = threading.Lock()
-
-_STOP_WORDS = {
-    "the", "a", "an", "and", "or", "of", "in", "on", "to", "for",
-    "is", "are", "was", "were", "be", "with", "by", "at", "from",
-    "as", "that", "this", "it", "its", "if", "then", "than", "into",
-    "about", "over", "under", "within", "between",
-}
-
-
-def _normalize_numeric_tokens(text: str) -> str:
-    return re.sub(r"\b0+(\d+)\b", r"\1", text or "")
-
-
-def _keywords(s: str) -> set:
-    normalized = _normalize_numeric_tokens(s or "")
-    toks = re.split(r"[^A-Za-z0-9]+", normalized.lower())
-    return {
-        t
-        for t in toks
-        if t
-        and (len(t) >= 2 or t.isdigit())
-        and t not in _STOP_WORDS
-    }
 
 
 _TABLE_Q_TERMS = {
@@ -106,9 +118,25 @@ def _table_intent_strength(question: str) -> int:
     return 0
 
 
-def retrieve_context(question: str, doc_id: str) -> tuple[str | None, str | None]:
-    """Embed the question, query ChromaDB, re-rank with keyword overlap."""
 
+def _rrf(rank: int, k: int = 60) -> float:
+    """Reciprocal Rank Fusion score for a 0-indexed rank.
+
+    Formula: 1 / (k + rank + 1)
+    Using rank+1 converts 0-indexed Python positions to 1-indexed RRF convention.
+    k=60 is the standard default from the original RRF paper.
+    """
+    return 1.0 / (k + rank + 1)
+
+
+def retrieve_context(question: str, doc_id: str) -> tuple[str | None, str | None]:
+    """Hybrid retrieval: Vector (Chroma, top-20) + BM25 (cached, top-20),
+    fused with Reciprocal Rank Fusion.
+    Final score = RRF_WEIGHT * rrf + SIM_WEIGHT * sim  (env-var configurable).
+    Table-aware boosting applied after fusion.
+    """
+
+    # --- 1. Vector Search ---
     q_emb = generate_embeddings(question)
     if not q_emb:
         logger.error("[Retrieval] Embedding failed")
@@ -116,7 +144,7 @@ def retrieve_context(question: str, doc_id: str) -> tuple[str | None, str | None
 
     results = collection.query(
         query_embeddings=[q_emb],
-        n_results=12,
+        n_results=20,
         where={"doc_id": doc_id},
         include=["documents", "distances", "metadatas"],
     )
@@ -125,87 +153,91 @@ def retrieve_context(question: str, doc_id: str) -> tuple[str | None, str | None
     dists = results.get("distances", [[]])[0] or []
     metas = results.get("metadatas", [[]])[0] or []
 
-    q_terms = _keywords(question)
-
-    table_intent = _table_intent_strength(question)
-
-    candidates: list[dict] = []
+    # Build ordered vector hit list: (chunk_id, dist, meta, text)
+    vector_hits: list[tuple[str, float, dict, str]] = []
     for i, (doc_txt, dist) in enumerate(zip(docs, dists)):
-        meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
         if not doc_txt:
             continue
+        meta = metas[i] if i < len(metas) and isinstance(metas[i], dict) else {}
+        dist = float(dist) if dist is not None else 0.5
+        chunk_idx = meta.get("chunk", i)
+        chunk_id = f"{doc_id}_{chunk_idx}"
+        vector_hits.append((chunk_id, dist, meta, doc_txt))
 
-        if dist is None:
-            dist = 0.5  # normalize
+    # --- 2. BM25 Search (in-process cache, zero network overhead) ---
+    # Returns [(chunk_id, score, text, is_table), ...] sorted descending.
+    # Returns [] on cache miss (first query before index warms up or after TTL).
+    bm25_hits = bm25_search(doc_id, question, top_k=20)
 
-        # Temporary distance logging (requested for debugging).
-        print(f"DIST: {dist}")
-
-        overlap = len(q_terms & _keywords(doc_txt))
-        sim = 1.0 - max(0.0, min(1.0, dist))
-        score = 0.7 * sim + 0.3 * (overlap / (len(q_terms) or 1))
-
-        # Lightweight table-aware boosting.
-        if table_intent:
-            try:
-                is_table = bool(meta and meta.get("is_table"))
-            except Exception:
-                is_table = False
-
-            # Explicit table intent: boost tables more, penalize non-tables slightly.
-            if table_intent >= 2:
-                score *= 1.30 if is_table else 0.93
-            # Weak table intent: mild preference.
-            else:
-                score *= 1.15 if is_table else 0.99
-
-        logger.info(
-            "[Retrieval Candidate] "
-            "dist=%.4f overlap=%s score=%.4f table=%s text=%s",
-            dist,
-            overlap,
-            score,
-            meta.get("is_table") if isinstance(meta, dict) else False,
-            repr(doc_txt[:180]),
-        )
-
-        candidates.append(
-            {
-                "text": doc_txt,
-                "metadata": meta,
-                "score": score,
-                "distance": dist,
-            }
-        )
-
-    if not candidates:
-        logger.warning("[Retrieval] No candidates found for doc_id={doc_id}")
+    if not vector_hits and not bm25_hits:
+        logger.warning("[Retrieval] No results from either search for doc_id=%s", doc_id)
         return None, None
 
-    # Sort by hybrid score (descending)
+    # --- 3. RRF Fusion keyed by chunk_id ---
+    rrf_scores: dict[str, float] = {}
+    chunk_text_map: dict[str, str] = {}
+    chunk_sim_map: dict[str, float] = {}     # similarity = 1 - distance
+    chunk_is_table_map: dict[str, bool] = {}
+
+    # Vector contributions (0-indexed rank → RRF score)
+    for rank, (cid, dist, meta, text) in enumerate(vector_hits):
+        rrf_scores[cid] = rrf_scores.get(cid, 0.0) + _rrf(rank)
+        chunk_text_map[cid] = text
+        chunk_sim_map[cid] = 1.0 - max(0.0, min(1.0, dist))
+        chunk_is_table_map[cid] = bool(meta.get("is_table")) if meta else False
+        logger.debug("[Vector] rank=%d chunk=%s dist=%.4f", rank, cid, dist)
+
+    # BM25 contributions (0-indexed rank → RRF score)
+    # Chunks that appear in both lists accumulate scores from both.
+    # Chunks only in BM25 get sim=0.0 (no Chroma distance available).
+    for rank, (cid, bm25_score, text, is_table) in enumerate(bm25_hits):
+        rrf_scores[cid] = rrf_scores.get(cid, 0.0) + _rrf(rank)
+        if cid not in chunk_text_map:
+            chunk_text_map[cid] = text
+            chunk_sim_map[cid] = 0.0
+            chunk_is_table_map[cid] = is_table
+        logger.debug("[BM25] rank=%d chunk=%s bm25=%.4f", rank, cid, bm25_score)
+
+    # --- 4. Compute final scores and apply table boost ---
+    table_intent = _table_intent_strength(question)
+    candidates: list[dict] = []
+
+    for cid, rrf_score in rrf_scores.items():
+        text = chunk_text_map.get(cid, "")
+        if not text:
+            continue
+
+        sim = chunk_sim_map.get(cid, 0.0)
+        is_table = chunk_is_table_map.get(cid, False)
+
+        # Hybrid score: mostly RRF, with a small similarity tiebreaker.
+        final_score = RRF_WEIGHT * rrf_score + SIM_WEIGHT * sim
+
+        # Lightweight table-aware boosting (unchanged from previous pipeline).
+        if table_intent:
+            if table_intent >= 2:
+                final_score *= 1.30 if is_table else 0.93
+            else:
+                final_score *= 1.15 if is_table else 0.99
+
+        logger.info(
+            "[Retrieval] chunk=%s rrf=%.4f sim=%.4f final=%.4f table=%s",
+            cid, rrf_score, sim, final_score, is_table,
+        )
+        candidates.append({"chunk_id": cid, "text": text, "score": final_score})
+
+    if not candidates:
+        return None, None
+
     candidates.sort(key=lambda x: float(x.get("score") or 0.0), reverse=True)
-
-
-    strong = [c for c in candidates if (c.get("distance") is not None and float(c.get("distance")) < 0.6)]
-    weak = [c for c in candidates if (c.get("distance") is not None and float(c.get("distance")) < 0.9)]
-
-    if not strong and weak:
-        logger.info("[Retrieval] Fallback to weak matches for doc_id={doc_id}")
-
-    if not strong and not weak:
-        logger.warning("[Retrieval] No matches passed thresholds for doc_id={doc_id}")
-
-    selected = strong[:5] if strong else weak[:5]
+    top5 = candidates[:5]
 
     logger.info(
-        "[Retrieval Selected] count=%s strong=%s weak=%s",
-        len(selected),
-        len(strong),
-        len(weak),
+        "[Retrieval Selected] top=%d total_candidates=%d vector_hits=%d bm25_hits=%d",
+        len(top5), len(candidates), len(vector_hits), len(bm25_hits),
     )
 
-    chosen = [c.get("text") for c in selected if c.get("text")]
-
+    chosen = [c["text"] for c in top5 if c.get("text")]
     if not chosen:
         return None, None
 

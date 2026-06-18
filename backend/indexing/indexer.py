@@ -23,6 +23,7 @@ from utils.extraction import (
 from utils.table_extraction import extract_tables_for_file, render_markdown_table, flatten_table_for_embedding
 from utils.security import detect_sensitive
 from services.embedding_service import generate_embeddings
+from services.bm25_service import build_bm25_index, invalidate_bm25_index
 from indexing.chunking import chunk_text, split_sheet_sections
 
 
@@ -93,6 +94,9 @@ def has_index(doc_id: str) -> bool:
 
 
 def _delete_existing(doc_id: str):
+    # Invalidate the BM25 cache before removing Chroma vectors so queries
+    # cannot race against a half-deleted corpus.
+    invalidate_bm25_index(doc_id)
     try:
         existing = collection.get(where={"doc_id": doc_id}) or {}
         ids = existing.get("ids", []) or []
@@ -483,6 +487,21 @@ def index_bytes(
     added = added_text + added_tables
 
     _push_chunks_to_node(doc_id, filename, chunk_records)
+
+    # Build the in-process BM25 index from the same chunk_records that were
+    # just pushed to Node.  This runs synchronously but is fast (pure Python
+    # tokenization + BM25Okapi construction) and makes the index immediately
+    # available for the first query after upload.
+    bm25_chunks = [
+        {
+            "chunk_id": f"{doc_id}_{r['chunk']}",
+            "text": r["text"],
+            "is_table": bool(r.get("is_table", False)),
+        }
+        for r in chunk_records
+    ]
+    build_bm25_index(doc_id, bm25_chunks, file_hash=file_hash)
+
     return True, added
 
 
@@ -508,6 +527,17 @@ def index_text(doc_id: str, filename: str, text: str, file_hash: str | None = No
     added, _next_chunk_index = _index_sections(doc_id, filename, sections, chunk_records, file_hash=file_hash)
 
     _push_chunks_to_node(doc_id, filename, chunk_records)
+
+    bm25_chunks = [
+        {
+            "chunk_id": f"{doc_id}_{r['chunk']}",
+            "text": r["text"],
+            "is_table": bool(r.get("is_table", False)),
+        }
+        for r in chunk_records
+    ]
+    build_bm25_index(doc_id, bm25_chunks, file_hash=file_hash)
+
     return True, added
 
 

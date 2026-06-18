@@ -8,20 +8,27 @@ In today's information-driven world, efficiently extracting insights from docume
 
 SmartDocQ is a comprehensive full-stack web application that enables users to upload documents, engage with content through natural language queries, and generate educational resources automatically. By combining Retrieval-Augmented Generation (RAG) with Google's Gemini AI, the platform delivers accurate, context-aware responses while maintaining document privacy and security.
 
+SmartDocQ uses a Hybrid Retrieval-Augmented Generation (Hybrid RAG) architecture that combines semantic vector search, BM25 keyword retrieval, and Reciprocal Rank Fusion (RRF) to improve answer accuracy across both narrative documents and structured tabular data.
+
 ## Features
 
 ### Core Functionality
 - **Document Upload & Processing**: Support for PDF, DOC, DOCX, TXT, CSV, and XLSX files with intelligent text extraction and preprocessing
-- **AI-Powered Chat**: Interactive question-answering system that provides context-aware responses based on uploaded documents
+- **AI-Powered Chat**: Hybrid RAG-based question answering using Vector Search + BM25 + RRF Fusion
 - **Quiz Generation**: Automatic creation of multiple-choice, true/false, and short-answer questions from document content
 - **Flashcard Creation**: Smart extraction of key concepts and definitions for effective learning and revision
 - **Text Summarization**: Concise summaries of document content for quick comprehension
+- **Hybrid Retrieval Engine**: Combines semantic vector search, BM25 keyword search, and Reciprocal Rank Fusion (RRF) for higher retrieval accuracy
+- **Spreadsheet & Table Intelligence**: Extracts and indexes structured data from CSV, XLSX, and DOCX tables for table-aware question answering
+- **Contextual Chunking**: Uses document and sheet-aware contextual chunk headers to improve embedding quality and retrieval precision
+- **Automatic Reindexing**: Detects embedding model, content, or indexing pipeline changes and transparently reindexes documents in the background
 
 ### Security & Privacy
 - **Sensitive Data Detection**: Automatic identification of personal information (emails, phone numbers, Aadhaar, PAN, credit cards, SSN)
 - **User Consent Workflow**: Privacy-first approach requiring explicit consent before processing sensitive documents
 - **Content Moderation**: Profanity filtering and URL validation to maintain platform integrity
 - **Jailbreak Attempt Filtering**: Blocks common prompt-injection/jailbreak phrases in user questions before invoking retrieval/LLM
+- **Prompt Injection Mitigation**: Document content is sanitized before LLM processing and treated as untrusted input
 - **Hardened Error Handling**: Production-safe error responses return generic messages to clients while logging full server-side tracebacks. Detailed exception text is exposed only when `FLASK_DEBUG=1`, reducing information leakage and protecting internal service details.
 - **httpOnly Cookie Authentication**: Secure user sessions with role-based access control (User, Admin, Moderator)
 - **Server-Side Session Management**: Server-side session management with session invalidation and "logout from all devices" support
@@ -54,16 +61,66 @@ SmartDocQ is a comprehensive full-stack web application that enables users to up
 - **Flask 3.x**: Python web framework for AI processing
 - **Google Gemini 2.5 Flash**: Advanced text generation and comprehension
 - **Text-Embedding-004**: High-quality vector embeddings
-- **ChromaDB 0.5+**: Vector database for semantic search
+- **ChromaDB 0.5+**: Vector database for semantic retrieval
+- **BM25 Retrieval Layer**: Fast keyword and identifier-based search
+- **Reciprocal Rank Fusion (RRF)**: Hybrid ranking engine combining vector and lexical retrieval
 
 ### Document Processing
 - **PyPDF2**: PDF text extraction
 - **python-docx**: Microsoft Word document processing
+- **openpyxl**: Spreadsheet processing and table extraction
+- **Structured Table Extraction**: CSV, XLSX, and DOCX table indexing
 - **Better Profanity**: Content filtering
 
 ### Database
 - **MongoDB Atlas**: Primary NoSQL database for user data, documents, and chat history
 - **ChromaDB**: Vector store for document embeddings and semantic retrieval
+
+## System Architecture
+
+```mermaid
+graph TD
+    %% Styles
+    classDef client fill:#1A365D,stroke:#2A4365,stroke-width:2px,color:#fff;
+    classDef middleware fill:#2C7A7B,stroke:#319795,stroke-width:2px,color:#fff;
+    classDef aiservice fill:#2D3748,stroke:#4a5568,stroke-width:2px,color:#fff;
+    classDef database fill:#744210,stroke:#975A16,stroke-width:2px,color:#fff;
+    classDef external fill:#276749,stroke:#2f855a,stroke-width:2px,color:#fff;
+
+    subgraph Client_Layer ["Presentation Layer (Client)"]
+        Frontend["React.js SPA<br/>(TailwindCSS, GSAP, i18next)"]:::client
+    end
+
+    subgraph Middleware_Layer ["Business Logic Layer (Node.js API)"]
+        Express["Express.js Server<br/>(Router, Auth Middleware, Input Validation)"]:::middleware
+    end
+
+    subgraph AI_Layer ["AI Processing Layer (Flask Service)"]
+        Flask["Flask AI Service<br/>(Orchestrator)"]:::aiservice
+        Parser["Document Parser<br/>(PyPDF2, python-docx, openpyxl)"]:::aiservice
+        Retrieval["Hybrid Retrieval Layer<br/>(Vector + BM25 + RRF)"]:::aiservice
+    end
+
+    subgraph Database_Layer ["Storage & Database Layer"]
+        MongoDB["MongoDB Atlas<br/>(User, Document Metadata, Chats)"]:::database
+        ChromaDB["ChromaDB Vector Store<br/>(Document Chunks / Embeddings)"]:::database
+        BM25Cache["In-Memory BM25 Index<br/>(Tokenized Lexical Cache)"]:::database
+    end
+
+    subgraph External_API_Layer ["External APIs"]
+        Gemini["Google Gemini API<br/>(Gemini 2.5 Flash & text-embedding-004)"]:::external
+    end
+
+    %% Interactions
+    Frontend <-->|"HTTPS / REST API (JWT HTTP-Only)"| Express
+    Express <-->|"Server-to-Server REST (Service Token Auth)"| Flask
+    Express <-->|"Mongoose / Driver"| MongoDB
+    
+    Flask <-->|"Text / Embeddings"| Gemini
+    Flask <-->|"Vector CRUD / Query"| ChromaDB
+    Flask -->|"Local Tokenizer / Cache"| BM25Cache
+    Flask -->|"Preprocesses Uploads"| Parser
+```
 
 ## Architecture
 
@@ -72,6 +129,7 @@ SmartDocQ follows a **three-tier microservice architecture**:
 1. **Presentation Layer**: React.js frontend providing responsive user interface
 2. **Business Logic Layer**: Node.js/Express middleware handling authentication, routing, and database operations
 3. **AI Processing Layer**: Flask service managing document processing, embeddings, and AI interactions
+4. **Retrieval Layer**: Hybrid Vector + BM25 search with Reciprocal Rank Fusion ranking
 
 This separation ensures scalability, maintainability, and efficient resource utilization.
 
@@ -90,7 +148,22 @@ stale or incompatible vectors are detected.
 **This prevents:** silent retrieval degradation when upgrading embedding models
 or modifying chunking and preprocessing strategies.
 
-**Supported versioning:** embedding model, pipeline version, indexing timestamp
+**Supported versioning:**
+- embedding model
+- pipeline version
+- indexing timestamp
+- source file content hash
+
+## Retrieval Architecture
+
+SmartDocQ uses a Hybrid RAG pipeline that combines:
+
+- Semantic vector retrieval (ChromaDB)
+- BM25 keyword retrieval
+- Reciprocal Rank Fusion (RRF)
+- Table-aware reranking
+
+This approach improves both semantic understanding and exact-match retrieval for identifiers, spreadsheet data, and structured documents.
 
 ## Requirements
 

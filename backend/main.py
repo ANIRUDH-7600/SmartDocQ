@@ -12,6 +12,13 @@ from config import ALLOWED_ORIGINS, MAX_CONTENT_LENGTH, FLASK_DEBUG
 from routes.document_routes import document_bp
 from routes.ask_routes import ask_bp
 
+# ====== LOGGING ======
+logging.basicConfig(
+    level=getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+
 logger = logging.getLogger(__name__)
 
 

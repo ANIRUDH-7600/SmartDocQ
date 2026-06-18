@@ -40,9 +40,20 @@ fake_embedding_service = types.ModuleType("services.embedding_service")
 fake_embedding_service.generate_embeddings = lambda *_a, **_k: [0.0]
 sys.modules["services.embedding_service"] = fake_embedding_service
 
+# bm25_service is imported by retrieval_service; stub the search function only
+# so the module loads without rank_bm25 needing a live corpus.
+import importlib
+try:
+    import services.bm25_service as _bm25_mod  # real module if rank_bm25 installed
+except Exception:
+    _bm25_mod = types.ModuleType("services.bm25_service")  # type: ignore
+    _bm25_mod.bm25_search = lambda *_a, **_k: []  # type: ignore
+    sys.modules["services.bm25_service"] = _bm25_mod
+
 
 from indexing import indexer  # noqa: E402
 from services import retrieval_service  # noqa: E402
+from services import bm25_service  # noqa: E402
 
 from utils.extraction import extract_text_from_docx_bytes  # noqa: E402
 from utils.table_extraction import (  # noqa: E402
@@ -56,28 +67,35 @@ from utils.table_extraction import (  # noqa: E402
 
 # =========================
 # Retrieval keyword extraction
+# (tokenize() lives in bm25_service after the hybrid-search refactor)
 # =========================
 
 
+def _kw(text: str) -> set:
+    """Wrapper around bm25_service.tokenize that returns a set, matching
+    the old _keywords() interface used by tests."""
+    return set(bm25_service.tokenize(text))
+
+
 def _overlap(query: str, doc: str) -> int:
-    return len(retrieval_service._keywords(query) & retrieval_service._keywords(doc))
+    return len(_kw(query) & _kw(doc))
 
 
 def test_keywords_preserve_numeric_tokens():
-    terms = retrieval_service._keywords("team 6 project title")
+    terms = _kw("team 6 project title")
     assert "6" in terms
     assert _overlap("team 6 project title", "Team 6 final project submission") >= 3
 
 
 def test_keywords_normalize_leading_zero_numbers():
-    terms = retrieval_service._keywords("invoice 00045 approved")
+    terms = _kw("invoice 00045 approved")
     assert "45" in terms
     assert "00045" not in terms
     assert _overlap("invoice 00045", "Invoice 45 approved") >= 2
 
 
 def test_keywords_do_not_normalize_alphanumeric_identifiers():
-    terms = retrieval_service._keywords("47QZ9K2M7P CS001 A045X 00123AB")
+    terms = _kw("47QZ9K2M7P CS001 A045X 00123AB")
     assert "47qz9k2m7p" in terms
     assert "cs001" in terms
     assert "a045x" in terms
@@ -97,7 +115,7 @@ def test_keywords_support_csv_xlsx_identifier_overlap():
 
 
 def test_keywords_filters_noise_and_stopwords():
-    terms = retrieval_service._keywords("a, the; -- x 1 ?")
+    terms = _kw("a, the; -- x 1 ?")
     assert terms == {"1"}
 
 

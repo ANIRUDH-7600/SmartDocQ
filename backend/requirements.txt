@@ -11,3 +11,4 @@ docx2pdf>=0.1.8
 werkzeug>=3.0.0
 gunicorn>=21.2.0
 pytest>=9.0
+rank-bm25>=0.2.2
